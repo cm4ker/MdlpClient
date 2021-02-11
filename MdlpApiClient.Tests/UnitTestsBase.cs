@@ -12,15 +12,15 @@
     public class UnitTestsBase : IDisposable
     {
         // MDLP test stage data
-        public const string SystemID1 = "9dedee17-e43a-47f1-910e-3a88ff6bc81b"; // идентификатор субъекта обращения
-        public const string ClientID1 = "01db16f2-9a4e-4d9f-b5e8-c68f12566fd5"; // идентификатор учетной системы
-        public const string ClientSecret1 = "9199fe04-42c3-4e81-83b5-120eb5f129f2"; // секретный ключ учетной системы
+        public const string SystemID1 = "57663471-2d09-4832-9b76-78095fbd0d43"; // идентификатор субъекта обращения
+        public const string ClientID1 = "22d12250-6cf3-4a87-b439-f698cfddc498"; // идентификатор учетной системы
+        public const string ClientSecret1 = "3deb0ba1-26f2-4516-b652-931fe832e3ff"; // секретный ключ учетной системы
         public const string UserStarter1 = "starter_resident_1"; // имя тестового пользователя
         public const string UserPassword1 = "password"; // пароль тестового пользователя
 
-        public const string SystemID2 = "6f6fa779-b637-4234-9117-8ac4c1a9a81c";
-        public const string ClientID2 = "c9c307fd-dcb0-4505-8178-13ba2f362339";
-        public const string ClientSecret2 = "4d3a2f91-992f-4604-a8a1-71378a1eb75e";
+        public const string SystemID2 = "86325e0c-9a23-4547-ad8a-219b4fc7fd03";
+        public const string ClientID2 = "2cabd9b7-6042-40d8-97c2-8627f5704aa1";
+        public const string ClientSecret2 = "1713da9a-2042-465c-80ba-4da4dca3323d";
         public const string UserStarter2 = "starter_resident_2";
         public const string UserPassword2 = "password";
         public const string TestDocumentID = "cdeeb2af-bebc-44d6-ad78-4ceb1709b314"; // "60786bb4-fcb5-4587-b703-d0147e3f9d1c";
@@ -29,9 +29,9 @@
 
         // Custom test data, feel free to replace with your own certificate information
         public const string TestCertificateSubjectName = @"Тестовый УКЭП им. Юрия Гагарина";
-        public const string TestCertificateThumbprint = "1F9CA1F4DA4BE1A78A260D45376A8F71F5FFBA90";
+        public const string TestCertificateThumbprint = "0a22506a31c3c0c3c16939213e48cdd5d0c03d90";
         public const string TestUserThumbprint = TestCertificateThumbprint;
-        public const string TestUserID = "31736b85-45d8-4fb0-8130-f0dabce5d491"; // получен при регистрации
+        public const string TestUserID = "7ae327e3f8b19c0a1101979b4a4b8772cf52219f"; // получен при регистрации
 
         static UnitTestsBase()
         {
@@ -42,12 +42,12 @@
                 TestContext.Progress.WriteLine("Running unit tests on CI server.");
             }
 
-            // register old ServiceStack library that has limits
-            if (typeof(ServiceStack.Text.JsonSerializer).Assembly.GetName().Version <= new Version("4.0.33.0"))
-            {
-                var licenseKey = Environment.GetEnvironmentVariable("SERVICE_STACK4_LICENSE");
-                ServiceStack.Licensing.RegisterLicense(licenseKey);
-            }
+            // // register old ServiceStack library that has limits
+            // if (typeof(ServiceStack.Text.JsonSerializer).Assembly.GetName().Version <= new Version("4.0.33.0"))
+            // {
+            //     var licenseKey = Environment.GetEnvironmentVariable("SERVICE_STACK4_LICENSE");
+            //     ServiceStack.Licensing.RegisterLicense(licenseKey);
+            // }
 
             // for continuous integration: use certificates installed on the local machine
             // for unit tests run inside Visual Studio: use current user's certificates

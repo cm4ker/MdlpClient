@@ -24,8 +24,8 @@
   </PropertyGroup>
   
   <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net462|AnyCPU'">
-    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
-    <TreatSpecificWarningsAsErrors />
+<!--    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>-->
+<!--    <TreatSpecificWarningsAsErrors />-->
   </PropertyGroup>
   
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -38,8 +38,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="restsharp" Version="106.10.1" />
+<!--    <PackageReference Include="restsharp" Version="106.10.1" />-->
     <PackageReference Include="GostCryptography" Version="2.0.8" />
+    <PackageReference Include="restsharp" Version="106.11.7" />
     <PackageReference Include="ServiceStack.Text" Version="5.8" />
   </ItemGroup>
 

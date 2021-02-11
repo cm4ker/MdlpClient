@@ -365,7 +365,7 @@
             var enumMemberQuery =
                 from r in rights
                 let name = r.Right
-                let words = r.Description.Split(' ').Select(r => r.Trim())
+                let words = r.Description.Split(' ').Select(x => x.Trim())
                 let descr = string.Join(" ", words.Where(w => w.Any()))
                 orderby name
                 let items = new[]

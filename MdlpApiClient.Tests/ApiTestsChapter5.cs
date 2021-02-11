@@ -12,16 +12,20 @@
     {
         protected override MdlpClient CreateClient()
         {
-            return new MdlpClient(credentials: new ResidentCredentials
+            var res =  new MdlpClient(credentials: new ResidentCredentials
             {
                 ClientID = ClientID1,
                 ClientSecret = ClientSecret1,
                 UserID = TestUserThumbprint,
             },
-            baseUrl: MdlpClient.StageApiHttps)
+            baseUrl: MdlpClient.SandboxApiHttps)
             {
-                Tracer = WriteLine
+                Tracer = WriteLine,
             };
+
+            res.Client.RemoteCertificateValidationCallback += (sender, certificate, chain, errors) => true;
+            
+            return res;
         }
 
         [Test]

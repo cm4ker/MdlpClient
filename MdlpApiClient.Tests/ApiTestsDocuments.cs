@@ -14,16 +14,20 @@
     {
         protected override MdlpClient CreateClient()
         {
-            return new MdlpClient(credentials: new ResidentCredentials
-            {
-                ClientID = ClientID1,
-                ClientSecret = ClientSecret1,
-                UserID = TestUserThumbprint,
-            },
-            baseUrl: MdlpClient.StageApiHttps)
+            var res =  new MdlpClient(credentials: new ResidentCredentials
+                {
+                    ClientID = ClientID1,
+                    ClientSecret = ClientSecret1,
+                    UserID = TestUserThumbprint,
+                },
+                baseUrl: MdlpClient.SandboxApiHttps)
             {
                 Tracer = WriteLine
             };
+
+            res.Client.RemoteCertificateValidationCallback += (sender, certificate, chain, errors) => true;
+            
+            return res;
         }
 
         [Test]
@@ -44,6 +48,35 @@
             };
 
             doc.Register_End_Packing.Signs.Add("07091900400001TRANSF2000021");
+
+            var docId = Client.SendDocument(doc);
+            Assert.NotNull(docId);
+        }
+
+        [Test]
+        public void SendPackageDocument()
+        {
+            var doc = new Documents
+            {
+                Version = "1.34",
+                Move_Order = new Move_Order
+                {
+                    Doc_Date = DateTime.Now.ToString("dd.MM.yyyy"),
+                    Source = Source_Type.Item3,
+                    Doc_Num = "123",
+                    Operation_Date = DateTime.Now,
+                    Subject_Id = "00000000104493",
+                    Receiver_Id = "00000000100805",
+                    Contract_Num = "10",
+                }
+            };
+
+            doc.Move_Order.Order_Details.Add(new Move_OrderOrder_DetailsUnion
+            {
+                Sgtin = "507540413987452tkm7UWTMDBwD",
+                Cost = 10,
+                Vat_Value = 1
+            });
 
             var docId = Client.SendDocument(doc);
             Assert.NotNull(docId);

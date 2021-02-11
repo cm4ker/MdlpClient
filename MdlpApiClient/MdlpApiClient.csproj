@@ -62,16 +62,16 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="Properties\AssemblyInfo.txt" />
     <Compile Include="..\MdlpApiClient.Xsd\MdlpApiClient.Xsd.cs">
     	<Link>Xsd\MdlpApiClient.Xsd.cs</Link>
     </Compile>
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="restsharp" Version="106.11.4" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1-beta1" />
+    <PackageReference Include="restsharp" Version="106.11.7" />
     <PackageReference Include="GostCryptography" Version="2.0.8" />
-    <PackageReference Include="ServiceStack.Text" Version="4.0.33" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="5.0.1" />
   </ItemGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.1' ">

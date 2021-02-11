@@ -1,10 +1,13 @@
+using System.IO;
+using Newtonsoft.Json;
+using RestSharp.Serialization.Json;
+using JsonSerializer = Newtonsoft.Json.JsonSerializer;
+
 namespace MdlpApiClient.Serialization
 {
     using System;
-    using MdlpApiClient.DataContracts;
     using RestSharp;
     using RestSharp.Serialization;
-    using ServiceStack.Text;
 
     /// <summary>
     /// ServiceStack.Text.v4.0.33-based serializer.
@@ -13,13 +16,13 @@ namespace MdlpApiClient.Serialization
     {
         static ServiceStackSerializer()
         {
-            // use custom serialization only for our own types
-            JsConfig<CustomDate>.SerializeFn = c => c;
-            JsConfig<CustomDate>.DeSerializeFn = s => CustomDate.Parse(s);
-            JsConfig<CustomDateTime>.SerializeFn = c => c;
-            JsConfig<CustomDateTime>.DeSerializeFn = s => CustomDateTime.Parse(s);
-            JsConfig<CustomDateTimeSpace>.SerializeFn = c => c;
-            JsConfig<CustomDateTimeSpace>.DeSerializeFn = s => CustomDateTimeSpace.Parse(s);
+            // // use custom serialization only for our own types
+            // JsConfig<CustomDate>.SerializeFn = c => c;
+            // JsConfig<CustomDate>.DeSerializeFn = s => CustomDate.Parse(s);
+            // JsConfig<CustomDateTime>.SerializeFn = c => c;
+            // JsConfig<CustomDateTime>.DeSerializeFn = s => CustomDateTime.Parse(s);
+            // JsConfig<CustomDateTimeSpace>.SerializeFn = c => c;
+            // JsConfig<CustomDateTimeSpace>.DeSerializeFn = s => CustomDateTimeSpace.Parse(s);
         }
 
         public string[] SupportedContentTypes
@@ -48,13 +51,10 @@ namespace MdlpApiClient.Serialization
 
         internal T Deserialize<T>(string content)
         {
-            using (var scope = JsConfig.BeginScope())
-            {
-                scope.AlwaysUseUtc = false;
-                scope.AssumeUtc = false;
-                scope.AppendUtcOffset = false;
-                return JsonSerializer.DeserializeFromString<T>(content);
-            }
+            var js = JsonSerializer.CreateDefault();
+            var tr = new StringReader(content);
+
+            return js.Deserialize<T>(new JsonTextReader(tr));
         }
 
         public T Deserialize<T>(IRestResponse response)
@@ -69,16 +69,24 @@ namespace MdlpApiClient.Serialization
 
         public string Serialize(object obj)
         {
-            using (var scope = JsConfig.BeginScope())
-            {
-                scope.IncludeTypeInfo = false;
+            var js = JsonSerializer.CreateDefault();
+            js.DateFormatHandling = DateFormatHandling.IsoDateFormat;
+            js.DateFormatString = "yyyy-MM-ddTHH\\:mm\\:ss.fffffffzzz";
 
-                // ISO8601DateTime: "2019-04-24 20:43:44"
-                // ISO8601DateOnly: "2018-12-12"
-                // ISO8601: "2018-12-12T00:00:00.0000000"
-                scope.DateHandler = DateHandler.ISO8601;
-                return JsonSerializer.SerializeToString(obj);
-            }
+            return js.Serialize(obj);
+        }
+    }
+
+
+    public static class JsonNetHelper
+    {
+        public static string Serialize(this JsonSerializer s, object value)
+        {
+            var tw = new StringWriter();
+
+            s.Serialize(tw, value);
+
+            return tw.GetStringBuilder().ToString();
         }
     }
 }
