@@ -16,17 +16,16 @@
 	<xs:include schemaLocation="253-change_information.xsd"/>
 	<xs:include schemaLocation="254-change_property.xsd"/>
 	<xs:include schemaLocation="300-transfer_code_to_custom.xsd"/>
-	<xs:include schemaLocation="311-register_end_packing.xsd"/>
 	<xs:include schemaLocation="313-register_product_emission.xsd"/>
 	<xs:include schemaLocation="314-move_to_release.xsd"/>
 	<xs:include schemaLocation="315-return_contract_production.xsd"/>
-	<xs:include schemaLocation="321-foreign_emission.xsd"/>
 	<xs:include schemaLocation="331-foreign_shipment.xsd"/>
 	<xs:include schemaLocation="332-foreign_import.xsd"/>
 	<xs:include schemaLocation="333-foreign_import_owner.xsd"/>
 	<xs:include schemaLocation="334-custom_move.xsd"/>
 	<xs:include schemaLocation="335-fts_data.xsd"/>
 	<xs:include schemaLocation="336-import_info.xsd"/>
+	<xs:include schemaLocation="337-return_import.xsd"/>
 	<xs:include schemaLocation="341-receive_importer.xsd"/>
 	<xs:include schemaLocation="342-release_in_circulation.xsd"/>
 	<xs:include schemaLocation="351-change_owner.xsd"/>
@@ -46,8 +45,10 @@
 	<xs:include schemaLocation="470-move_state_dispatch.xsd"/>
 	<xs:include schemaLocation="471-state_dispatch.xsd"/>
 	<xs:include schemaLocation="472-agent_dispatch.xsd"/>
+	<xs:include schemaLocation="473-agent_acceptance.xsd"/>
 	<xs:include schemaLocation="481-arbitration.xsd"/>
 	<xs:include schemaLocation="511-retail_sale.xsd"/>
+	<xs:include schemaLocation="512-withdrawal_without_kkt.xsd"/>
 	<xs:include schemaLocation="521-recipe.xsd"/>
 	<xs:include schemaLocation="531-health_care.xsd"/>
 	<xs:include schemaLocation="541-move_destruction.xsd"/>
@@ -74,10 +75,14 @@
 	<xs:include schemaLocation="621-arbitration_notification.xsd"/>
 	<xs:include schemaLocation="622-return_contract_production_notification.xsd"/>
 	<xs:include schemaLocation="623-change_property_notification.xsd"/>
+	<xs:include schemaLocation="624-agent_acceptance_notification.xsd"/>
+	<xs:include schemaLocation="625-return_import_notification.xsd"/>
+	<xs:include schemaLocation="627-posting_notification.xsd"/>
+	<xs:include schemaLocation="628-posting_import_notification.xsd"/>
 	<xs:include schemaLocation="701-accept.xsd"/>
 	<xs:include schemaLocation="702-posting.xsd"/>
 	<xs:include schemaLocation="703-posting_import.xsd"/>
-	<xs:include schemaLocation="811-relabeling.xsd"/>
+	<xs:include schemaLocation="812-successor_acceptance.xsd"/>
 	<xs:include schemaLocation="911-unit_pack.xsd"/>
 	<xs:include schemaLocation="912-unit_unpack.xsd"/>
 	<xs:include schemaLocation="913-unit_extract.xsd"/>
@@ -169,11 +174,6 @@
 						<xs:documentation>300 - Регистрация держателем РУ (или его представительством) сведений о передаче кодов маркировки таможенному складу в ИС МДЛП</xs:documentation>
 					</xs:annotation>
 				</xs:element>
-				<xs:element name="register_end_packing" type="register_end_packing">
-					<xs:annotation>
-						<xs:documentation>311 - Регистрация в ИС МДЛП сведений о завершении этапа окончательной упаковки</xs:documentation>
-					</xs:annotation>
-				</xs:element>
 				<xs:element name="register_product_emission" type="register_product_emission">
 					<xs:annotation>
 						<xs:documentation>313 - Регистрация в ИС МДЛП сведений о выпуске готовой продукции</xs:documentation>
@@ -187,11 +187,6 @@
 				<xs:element name="return_contract_production" type="return_contract_production">
 					<xs:annotation>
 						<xs:documentation>315 - Регистрация в ИС МДЛП сведений о возврате лекарственных препаратов контрактному производителю</xs:documentation>
-					</xs:annotation>
-				</xs:element>
-				<xs:element name="foreign_emission" type="foreign_emission">
-					<xs:annotation>
-						<xs:documentation>321 - Регистрация в ИС МДЛП сведений о выпуске готовой продукции за пределами территории Российской Федерации</xs:documentation>
 					</xs:annotation>
 				</xs:element>
 				<xs:element name="foreign_shipment" type="foreign_shipment">
@@ -222,6 +217,11 @@
 				<xs:element name="import_info" type="import_info">
 					<xs:annotation>
 						<xs:documentation>336 -Регистрация держателем РУ (или его представительством) сведений об условиях ввоза в Российскую Федерацию ЛП, маркированных на таможенном складе, в ИС МДЛП</xs:documentation>
+					</xs:annotation>
+				</xs:element>
+				<xs:element name="return_import" type="return_import">
+					<xs:annotation>
+						<xs:documentation>337 - Регистрация в ИС МДЛП сведений о логическом возврате лекарственных препаратов ранее ввезенных в Российскую Федерацию</xs:documentation>
 					</xs:annotation>
 				</xs:element>
 				<xs:element name="receive_importer" type="receive_importer">
@@ -319,6 +319,11 @@
 						<xs:documentation>472 - Регистрация в ИС МДЛП сведений об отгрузке лекарственных препаратов со склада отправителя в рамках агентского договора</xs:documentation>
 					</xs:annotation>
 				</xs:element>
+				<xs:element name="agent_acceptance" type="agent_acceptance">
+					<xs:annotation>
+						<xs:documentation>473 - Регистрация в ИС МДЛП сведений о приемке лекарственных препаратов агентом в рамках агентского договора</xs:documentation>
+					</xs:annotation>
+				</xs:element>
 				<xs:element name="arbitration" type="arbitration">
 					<xs:annotation>
 						<xs:documentation>481 - Регистрация в ИС МДЛП сведений о постановке в арбитраж/снятие арбитража</xs:documentation>
@@ -327,6 +332,11 @@
 				<xs:element name="retail_sale" type="retail_sale">
 					<xs:annotation>
 						<xs:documentation>511 - Регистрация в ИС МДЛП сведений о продаже лекарственного препарата в рамках розничной торговли</xs:documentation>
+					</xs:annotation>
+				</xs:element>
+				<xs:element name="withdrawal_without_kkt" type="withdrawal_without_kkt">
+					<xs:annotation>
+						<xs:documentation>512 - Регистрация в ИС МДЛП сведений об отпуске ЛП в аптеке по документам, отличным от кассового чека</xs:documentation>
 					</xs:annotation>
 				</xs:element>
 				<xs:element name="recipe" type="recipe">
@@ -459,6 +469,26 @@
 						<xs:documentation>623 - Уведомление о регистрация в ИС МДЛП сведений о корректировке</xs:documentation>
 					</xs:annotation>
 				</xs:element>
+				<xs:element name="agent_acceptance_notification" type="agent_acceptance_notification">
+					<xs:annotation>
+						<xs:documentation>624 - Уведомление отправителя о приемке лекарственных препаратов агентом в рамках агентского договора</xs:documentation>
+					</xs:annotation>
+				</xs:element>
+				<xs:element name="return_import_notification" type="return_import_notification">
+					<xs:annotation>
+						<xs:documentation>625 - Уведомление о регистрация в ИС МДЛП сведений о логическом возврате лекарственных препаратов ранее ввезенных в Российскую Федерацию</xs:documentation>
+					</xs:annotation>
+				</xs:element>
+	<xs:element name="posting_notification" type="posting_notification">
+					<xs:annotation>
+						<xs:documentation>627 - Уведомление владельца о регистрация в ИС МДЛП сведений об оприходовании</xs:documentation>
+					</xs:annotation>
+				</xs:element>
+				<xs:element name="posting_import_notification" type="posting_import_notification">
+					<xs:annotation>
+						<xs:documentation>628 - Уведомление владельца о регистрация в ИС МДЛП сведений об оприходовании (импорт)</xs:documentation>
+					</xs:annotation>
+				</xs:element>
 				<xs:element name="accept" type="accept">
 					<xs:annotation>
 						<xs:documentation>701 - Регистрация в ИС МДЛП подтверждения (акцептования) сведений</xs:documentation>
@@ -474,9 +504,9 @@
 						<xs:documentation>703 - Регистрация в ИС МДЛП сведений об оприходовании (импорт)</xs:documentation>
 					</xs:annotation>
 				</xs:element>
-				<xs:element name="relabeling" type="relabeling">
+				<xs:element name="successor_acceptance" type="successor_acceptance">
 					<xs:annotation>
-						<xs:documentation>811 - Регистрация в ИС МДЛП сведений о переупаковке и перемаркировке лекарственных препаратов</xs:documentation>
+						<xs:documentation>812 - Регистрация в ИС МДЛП сведений о перемещении лекарственных препаратов на склад правопреемника</xs:documentation>
 					</xs:annotation>
 				</xs:element>
 				<xs:element name="unit_pack" type="unit_pack">

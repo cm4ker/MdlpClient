@@ -30,7 +30,7 @@
 			</xs:element>
 			<xs:element name="doc_num" type="document_number_200_type">
 				<xs:annotation>
-					<xs:documentation>Реквизиты документа: основания номер документа</xs:documentation>
+					<xs:documentation>Реквизиты документа основания: номер документа</xs:documentation>
 				</xs:annotation>
 			</xs:element>
 			<xs:element name="doc_date" type="date_type">

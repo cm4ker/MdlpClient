@@ -3,9 +3,9 @@
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
 	<xs:include schemaLocation="base_ref.xsd"/>
 	<xs:include schemaLocation="base_types.xsd"/>
-	<xs:complexType name="state_dispatch">
+	<xs:complexType name="posting_notification">
 		<xs:annotation>
-			<xs:documentation>Регистрация в ИС МДЛП сведений о смене владельца лекарственных препаратов в рамках государственного лекарственного обеспечения</xs:documentation>
+			<xs:documentation>Уведомление владельца о регистрация в ИС МДЛП сведений об оприходовании</xs:documentation>
 		</xs:annotation>
 		<xs:sequence>
 			<xs:element name="subject_id" type="subject_id_type">
@@ -13,9 +13,19 @@
 					<xs:documentation>Идентификатор организации-отправителя</xs:documentation>
 				</xs:annotation>
 			</xs:element>
-			<xs:element name="receiver_id" type="subject_id_type">
+			<xs:element name="inn" type="inn_type">
 				<xs:annotation>
-					<xs:documentation>Идентификатор организации-получателя</xs:documentation>
+					<xs:documentation>ИНН  организации-отправителя</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="organisation_name" type="string1000_type">
+				<xs:annotation>
+					<xs:documentation>Наименование организации -отправителя</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="owner_id" type="subject_any_type">
+				<xs:annotation>
+					<xs:documentation>Идентификатор владельца</xs:documentation>
 				</xs:annotation>
 			</xs:element>
 			<xs:element name="operation_date" type="datetimeoffset">
@@ -23,30 +33,15 @@
 					<xs:documentation>Дата совершения операции</xs:documentation>
 				</xs:annotation>
 			</xs:element>
-			<xs:element name="turnover_type" type="turnover_type_enum" minOccurs="0">
-				<xs:annotation>
-					<xs:documentation>Тип операции отгрузки со склада</xs:documentation>
-				</xs:annotation>
-			</xs:element>
-			<xs:element name="doc_num" type="document_number_200_type">
-				<xs:annotation>
-					<xs:documentation>Реквизиты первичного документа: номер документа</xs:documentation>
-				</xs:annotation>
-			</xs:element>
-			<xs:element name="doc_date" type="date_type">
-				<xs:annotation>
-					<xs:documentation>Реквизиты первичного документа: дата документа</xs:documentation>
-				</xs:annotation>
-			</xs:element>
 			<xs:element name="order_details">
 				<xs:annotation>
-					<xs:documentation>Список передаваемой продукции</xs:documentation>
+					<xs:documentation>Список продукции</xs:documentation>
 				</xs:annotation>
 				<xs:complexType>
 					<xs:choice maxOccurs="25000">
 						<xs:element name="sgtin" type="sign_sgtin_type">
 							<xs:annotation>
-								<xs:documentation>Номер SGTIN</xs:documentation>
+								<xs:documentation>Идентификатор SGTIN</xs:documentation>
 							</xs:annotation>
 						</xs:element>
 						<xs:element name="sscc" type="sscc_type">
@@ -56,16 +51,16 @@
 						</xs:element>
 					</xs:choice>
 				</xs:complexType>
-				<xs:unique name="ux_state_desp_sgtin">
+				<xs:unique name="ux_posting_notification_sgtin">
 					<xs:selector xpath="sgtin"/>
 					<xs:field xpath="."/>
 				</xs:unique>
-				<xs:unique name="ux_state_desp_sscc">
+				<xs:unique name="ux_posting_notification_sscc">
 					<xs:selector xpath="sscc"/>
 					<xs:field xpath="."/>
 				</xs:unique>
 			</xs:element>
 		</xs:sequence>
-		<xs:attribute name="action_id" type="xs:int" use="required" fixed="471"/>
+		<xs:attribute name="action_id" type="xs:int" use="required" fixed="627"/>
 	</xs:complexType>
 </xs:schema>
