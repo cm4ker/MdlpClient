@@ -88,6 +88,12 @@
     <Reference Include="System.ComponentModel.DataAnnotations" />
   </ItemGroup>
 
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>MdlpApiClient.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
   <!-- always include debug info, regardless of the target Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'" -->
   <PropertyGroup>
     <DebugType>full</DebugType>

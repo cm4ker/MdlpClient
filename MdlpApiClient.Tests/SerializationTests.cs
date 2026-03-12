@@ -432,8 +432,8 @@
         public void XmlDeserializationTest()
         {
             var docXml = @"<?xml version=""1.0"" encoding=""utf-8""?>
-<documents xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" version=""1.34"">
-  <register_end_packing action_id=""311"">
+<documents xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" version=""1.38"">
+    <skzkm_register_end_packing action_id=""10311"">
     <subject_id>00000000100930</subject_id>
     <operation_date>2020-04-08T16:14:05.8168969+03:00</operation_date>
     <order_type>1</order_type>
@@ -443,7 +443,7 @@
     <signs>
       <sgtin>07091900400001TRANSF2000021</sgtin>
     </signs>
-  </register_end_packing>
+    </skzkm_register_end_packing>
 </documents>";
 
             var doc = XmlSerializationHelper.Deserialize(docXml);
