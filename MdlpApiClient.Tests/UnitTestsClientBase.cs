@@ -21,7 +21,8 @@
                 ClientSecret = ClientSecret1,
                 UserID = UserStarter1,
                 Password = UserPassword1,
-            })
+            },
+            baseUrl: TestApiBaseUrl)
             {
                 Tracer = WriteLine
             };

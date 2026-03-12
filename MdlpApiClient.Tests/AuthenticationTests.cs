@@ -17,7 +17,8 @@ namespace MdlpApiClient.Tests
                 ClientSecret = ClientSecret1,
                 UserID = UserStarter1,
                 Password = UserPassword1
-            })
+            },
+            baseUrl: TestApiBaseUrl)
             {
                 Tracer = WriteLine
             };
@@ -37,7 +38,8 @@ namespace MdlpApiClient.Tests
                 ClientSecret = ClientSecret1,
                 UserID = UserStarter2,
                 Password = UserPassword2
-            })
+            },
+            baseUrl: TestApiBaseUrl)
             {
                 Tracer = WriteLine
             };
@@ -60,7 +62,8 @@ namespace MdlpApiClient.Tests
                 ClientSecret = ClientSecret2,
                 UserID = UserStarter2,
                 Password = UserPassword2
-            })
+            },
+            baseUrl: TestApiBaseUrl)
             {
                 Tracer = WriteLine
             };
@@ -85,7 +88,8 @@ namespace MdlpApiClient.Tests
                 ClientID = ClientID1,
                 ClientSecret = ClientSecret1,
                 UserID = TestUserThumbprint,
-            })
+            },
+            baseUrl: TestApiBaseUrl)
             {
                 Tracer = WriteLine
             };
@@ -105,7 +109,8 @@ namespace MdlpApiClient.Tests
                 ClientSecret = ClientSecret2,
                 UserID = UserStarter2,
                 Password = UserPassword2
-            })
+            },
+            baseUrl: TestApiBaseUrl)
             {
                 Tracer = WriteLine
             };

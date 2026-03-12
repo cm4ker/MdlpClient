@@ -11,27 +11,34 @@
     [TestFixture]
     public class UnitTestsBase : IDisposable
     {
+        private static string EnvOrDefault(string name, string fallback)
+        {
+            var value = Environment.GetEnvironmentVariable(name);
+            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+        }
+
         // MDLP test stage data
-        public const string SystemID1 = "57663471-2d09-4832-9b76-78095fbd0d43"; // идентификатор субъекта обращения
-        public const string ClientID1 = "22d12250-6cf3-4a87-b439-f698cfddc498"; // идентификатор учетной системы
-        public const string ClientSecret1 = "3deb0ba1-26f2-4516-b652-931fe832e3ff"; // секретный ключ учетной системы
-        public const string UserStarter1 = "starter_resident_1"; // имя тестового пользователя
-        public const string UserPassword1 = "password"; // пароль тестового пользователя
+        public static readonly string SystemID1 = EnvOrDefault("MDLP_SYSTEM_ID_1", "57663471-2d09-4832-9b76-78095fbd0d43"); // идентификатор субъекта обращения
+        public static readonly string ClientID1 = EnvOrDefault("MDLP_CLIENT_ID_1", "22d12250-6cf3-4a87-b439-f698cfddc498"); // идентификатор учетной системы
+        public static readonly string ClientSecret1 = EnvOrDefault("MDLP_CLIENT_SECRET_1", "3deb0ba1-26f2-4516-b652-931fe832e3ff"); // секретный ключ учетной системы
+        public static readonly string UserStarter1 = EnvOrDefault("MDLP_USER_STARTER_1", "starter_resident_1"); // имя тестового пользователя
+        public static readonly string UserPassword1 = EnvOrDefault("MDLP_USER_PASSWORD_1", "password"); // пароль тестового пользователя
 
-        public const string SystemID2 = "86325e0c-9a23-4547-ad8a-219b4fc7fd03";
-        public const string ClientID2 = "2cabd9b7-6042-40d8-97c2-8627f5704aa1";
-        public const string ClientSecret2 = "1713da9a-2042-465c-80ba-4da4dca3323d";
-        public const string UserStarter2 = "starter_resident_2";
-        public const string UserPassword2 = "password";
-        public const string TestDocumentID = "cdeeb2af-bebc-44d6-ad78-4ceb1709b314"; // "60786bb4-fcb5-4587-b703-d0147e3f9d1c";
-        public const string TestDocRequestID = "97dad8f1-ef1d-4339-9938-18f129200e5d"; // "528700e0-f967-4ddb-995d-5c6c7b73bcc9";
-        public const string TestTicketID = "9d08e171-9ffc-4dce-b1da-d8e2472540ea"; // "e6afe4b3-4cb3-43af-b94e-83fcc358f4b7", TestDocumentID;
+        public static readonly string SystemID2 = EnvOrDefault("MDLP_SYSTEM_ID_2", "86325e0c-9a23-4547-ad8a-219b4fc7fd03");
+        public static readonly string ClientID2 = EnvOrDefault("MDLP_CLIENT_ID_2", "2cabd9b7-6042-40d8-97c2-8627f5704aa1");
+        public static readonly string ClientSecret2 = EnvOrDefault("MDLP_CLIENT_SECRET_2", "1713da9a-2042-465c-80ba-4da4dca3323d");
+        public static readonly string UserStarter2 = EnvOrDefault("MDLP_USER_STARTER_2", "starter_resident_2");
+        public static readonly string UserPassword2 = EnvOrDefault("MDLP_USER_PASSWORD_2", "password");
+        public static readonly string TestDocumentID = EnvOrDefault("MDLP_TEST_DOCUMENT_ID", "cdeeb2af-bebc-44d6-ad78-4ceb1709b314"); // "60786bb4-fcb5-4587-b703-d0147e3f9d1c";
+        public static readonly string TestDocRequestID = EnvOrDefault("MDLP_TEST_DOC_REQUEST_ID", "97dad8f1-ef1d-4339-9938-18f129200e5d"); // "528700e0-f967-4ddb-995d-5c6c7b73bcc9";
+        public static readonly string TestTicketID = EnvOrDefault("MDLP_TEST_TICKET_ID", "9d08e171-9ffc-4dce-b1da-d8e2472540ea"); // "e6afe4b3-4cb3-43af-b94e-83fcc358f4b7", TestDocumentID;
 
-        // Custom test data, feel free to replace with your own certificate information
-        public const string TestCertificateSubjectName = @"Тестовый УКЭП им. Юрия Гагарина";
-        public const string TestCertificateThumbprint = "0a22506a31c3c0c3c16939213e48cdd5d0c03d90";
-        public const string TestUserThumbprint = TestCertificateThumbprint;
-        public const string TestUserID = "7ae327e3f8b19c0a1101979b4a4b8772cf52219f"; // получен при регистрации
+        // Custom test data, can be overridden by environment variables.
+        public static readonly string TestApiBaseUrl = EnvOrDefault("MDLP_TEST_API_BASE_URL", MdlpClient.SandboxApiHttps);
+        public static readonly string TestCertificateSubjectName = EnvOrDefault("MDLP_CERT_SUBJECT_NAME", @"Тестовый УКЭП им. Юрия Гагарина");
+        public static readonly string TestCertificateThumbprint = EnvOrDefault("MDLP_CERT_THUMBPRINT", "0a22506a31c3c0c3c16939213e48cdd5d0c03d90");
+        public static readonly string TestUserThumbprint = EnvOrDefault("MDLP_USER_THUMBPRINT", TestCertificateThumbprint);
+        public static readonly string TestUserID = EnvOrDefault("MDLP_TEST_USER_ID", "7ae327e3f8b19c0a1101979b4a4b8772cf52219f"); // получен при регистрации
 
         static UnitTestsBase()
         {

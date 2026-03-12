@@ -15,7 +15,7 @@
                 ClientSecret = ClientSecret1,
                 UserID = TestUserThumbprint,
             },
-            baseUrl: MdlpClient.StageApiHttps)
+            baseUrl: TestApiBaseUrl)
             {
                 Tracer = WriteLine
             };
