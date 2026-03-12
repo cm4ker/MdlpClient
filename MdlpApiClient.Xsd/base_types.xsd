@@ -229,7 +229,6 @@
             <xs:enumeration value="470" />
             <xs:enumeration value="541" />
             <xs:enumeration value="300" />
-            <xs:enumeration value="812" />
         </xs:restriction>
     </xs:simpleType>
     <xs:simpleType name="confirm_doc_type_enum">
@@ -288,6 +287,10 @@
                 11 - выведен из оборота в целях клинических исследований
                 12 - выведен из оборота в результате отпуска по документам
                 13 - выведен из оборота по причине экспорта вне РФ
+                14 - выведен из оборота по причине списания при инвентаризации
+                15 - выведен из оборота в результате перемещения в карантинную зону
+                16 - выведен из оборота по причине списания при отсутствии информации согласно БП
+				17 - Выведен из оборота в рамках отбора контрольных образцов в рамках процесса контроля качества/архивных образцов
 </xs:documentation>
         </xs:annotation>
         <xs:restriction base="xs:int">
@@ -303,6 +306,10 @@
             <xs:enumeration value="11" />
             <xs:enumeration value="12" />
             <xs:enumeration value="13" />
+            <xs:enumeration value="14" />
+            <xs:enumeration value="15" />
+            <xs:enumeration value="16" />
+			<xs:enumeration value="17" />
         </xs:restriction>
     </xs:simpleType>
     <xs:simpleType name="reason_return_type_enum">
@@ -310,11 +317,13 @@
             <xs:documentation>Причины возврата
                 1 – возврат надлежащего качества
                 2 – возврат ненадлежащего качества
+                3 – возврат в рамках контрольной закупки
             </xs:documentation>
         </xs:annotation>
         <xs:restriction base="xs:int">
             <xs:enumeration value="1" />
             <xs:enumeration value="2" />
+            <xs:enumeration value="3" />
         </xs:restriction>
     </xs:simpleType>
     <xs:simpleType name="withdrawal_type_enum">
@@ -340,7 +349,8 @@
                 23 - списание лекарственных препаратов при отсутствии информации согласно БП
                 24 - экспорт вне РФ
                 26 - предоставление гуманитарной помощи
-</xs:documentation>
+                27 - перемещение в карантинную зону
+                28 - самостоятельное уничтожение</xs:documentation>
         </xs:annotation>
         <xs:restriction base="xs:int">
             <xs:enumeration value="6" />
@@ -363,6 +373,8 @@
             <xs:enumeration value="23" />
             <xs:enumeration value="24" />
             <xs:enumeration value="26" />
+            <xs:enumeration value="27" />
+            <xs:enumeration value="28" />
         </xs:restriction>
     </xs:simpleType>
     <xs:simpleType name="gs1_gtin_type">
@@ -484,11 +496,13 @@
             <xs:documentation>Виды операции отгрузки
                 1 – продажа
                 2 – возврат
+                3 - возврат производителю
             </xs:documentation>
         </xs:annotation>
         <xs:restriction base="xs:int">
             <xs:enumeration value="1" />
             <xs:enumeration value="2" />
+            <xs:enumeration value="3" />
         </xs:restriction>
     </xs:simpleType>
     <xs:simpleType name="fts_customs_code_type">
@@ -640,13 +654,20 @@
                 2 - уведомление об изменениях процессов или взаимодействия
                 3 - уведомление о нарушении
                 4 - информационное уведомление
-           </xs:documentation>
+                5 - информация о РВ
+                6 - информация об обороте ЛП
+                7 - информация о результатах автоввода
+                8 - информация о результатах автоввоза</xs:documentation>
         </xs:annotation>
         <xs:restriction base="xs:int">
             <xs:enumeration value="1" />
             <xs:enumeration value="2" />
             <xs:enumeration value="3" />
             <xs:enumeration value="4" />
+            <xs:enumeration value="5" />
+            <xs:enumeration value="6" />
+            <xs:enumeration value="7" />
+            <xs:enumeration value="8" />
         </xs:restriction>
     </xs:simpleType>
 </xs:schema>

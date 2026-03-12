@@ -38,6 +38,21 @@
                     <xs:documentation>Код страны экспорта</xs:documentation>
                 </xs:annotation>
             </xs:element>
+            <xs:element name="destruction_method" type="destruction_method_enum" minOccurs="0">
+                <xs:annotation>
+                    <xs:documentation>Способ уничтожения</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="reason_for_destruction" type="reason_for_destruction_type_enum" minOccurs="0">
+                <xs:annotation>
+                    <xs:documentation>Причина уничтожения</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="unpack" type="xs:boolean" minOccurs="0">
+                <xs:annotation>
+                    <xs:documentation>Признак расформирования транспортной упаковки</xs:documentation>
+                </xs:annotation>
+            </xs:element>
             <xs:element name="order_details">
                 <xs:annotation>
                     <xs:documentation>Список продукции</xs:documentation>

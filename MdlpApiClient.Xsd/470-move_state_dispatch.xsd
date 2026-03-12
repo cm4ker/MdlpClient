@@ -39,6 +39,7 @@
                 </xs:annotation>
                 <xs:simpleType>
                     <xs:restriction base="source_type">
+                        <xs:enumeration value="1" />
                         <xs:enumeration value="2" />
                         <xs:enumeration value="3" />
                         <xs:enumeration value="4" />

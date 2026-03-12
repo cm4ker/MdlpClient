@@ -3,9 +3,9 @@
 <xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
     <xs:include schemaLocation="base_ref.xsd" />
     <xs:include schemaLocation="base_types.xsd" />
-    <xs:complexType name="move_return">
+    <xs:complexType name="posting_notification">
         <xs:annotation>
-            <xs:documentation>Регистрация в ИС МДЛП сведений о возврате приостановленных лекарственных препаратов</xs:documentation>
+            <xs:documentation>Уведомление владельца о регистрация в ИС МДЛП сведений об оприходовании</xs:documentation>
         </xs:annotation>
         <xs:sequence>
             <xs:element name="subject_id" type="subject_id_type">
@@ -13,40 +13,49 @@
                     <xs:documentation>Идентификатор организации-отправителя</xs:documentation>
                 </xs:annotation>
             </xs:element>
-            <xs:element name="receiver_id" type="subject_id_type">
+            <xs:element name="inn" type="inn_type">
                 <xs:annotation>
-                    <xs:documentation>Идентификатор организации-получателя</xs:documentation>
+                    <xs:documentation>ИНН  организации-отправителя</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="organisation_name" type="string1000_type">
+                <xs:annotation>
+                    <xs:documentation>Наименование организации -отправителя</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="owner_id" type="subject_any_type">
+                <xs:annotation>
+                    <xs:documentation>Идентификатор владельца</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="shipper_id" type="subject_id_type" minOccurs="0">
+                <xs:annotation>
+                    <xs:documentation>Идентификатор грузоотправителя</xs:documentation>
                 </xs:annotation>
             </xs:element>
             <xs:element name="operation_date" type="datetimeoffset">
                 <xs:annotation>
-                    <xs:documentation>Дата отгрузки</xs:documentation>
+                    <xs:documentation>Дата совершения операции</xs:documentation>
                 </xs:annotation>
             </xs:element>
-            <xs:element name="doc_num" type="document_number_200_type">
+            <xs:element name="receive_type" type="receive_type_enum" minOccurs="0">
+                <xs:annotation>
+                    <xs:documentation>Тип операции оприходования</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="doc_num" type="document_number_200_type" minOccurs="0">
                 <xs:annotation>
                     <xs:documentation>Реквизиты документа основания: номер документа</xs:documentation>
                 </xs:annotation>
             </xs:element>
-            <xs:element name="doc_date" type="date_type">
+            <xs:element name="doc_date" type="date_type" minOccurs="0">
                 <xs:annotation>
                     <xs:documentation>Реквизиты документа основания: дата документа</xs:documentation>
                 </xs:annotation>
             </xs:element>
-            <xs:element name="turnover_type" minOccurs="0">
-                <xs:annotation>
-                    <xs:documentation>Тип возврата</xs:documentation>
-                </xs:annotation>
-                <xs:simpleType>
-                    <xs:restriction base="turnover_type_enum">
-                        <xs:enumeration value="2" />
-                        <xs:enumeration value="3" />
-                    </xs:restriction>
-                </xs:simpleType>
-            </xs:element>
             <xs:element name="order_details">
                 <xs:annotation>
-                    <xs:documentation>Список передаваемой продукции</xs:documentation>
+                    <xs:documentation>Список продукции</xs:documentation>
                 </xs:annotation>
                 <xs:complexType>
                     <xs:choice maxOccurs="25000">
@@ -62,16 +71,16 @@
                         </xs:element>
                     </xs:choice>
                 </xs:complexType>
-                <xs:unique name="ux_move_return_sgtin">
+                <xs:unique name="ux_posting_notification_sgtin">
                     <xs:selector xpath="sgtin" />
                     <xs:field xpath="." />
                 </xs:unique>
-                <xs:unique name="ux_move_return_sscc">
+                <xs:unique name="ux_posting_notification_sscc">
                     <xs:selector xpath="sscc" />
                     <xs:field xpath="." />
                 </xs:unique>
             </xs:element>
         </xs:sequence>
-        <xs:attribute name="action_id" type="xs:int" fixed="417" use="required" />
+        <xs:attribute name="action_id" type="xs:int" fixed="627" use="required" />
     </xs:complexType>
 </xs:schema>

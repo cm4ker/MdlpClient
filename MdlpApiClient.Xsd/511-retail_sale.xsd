@@ -95,25 +95,25 @@
                                                 </xs:element>
                                                 <xs:element name="prescription" minOccurs="0">
                                                     <xs:annotation>
-                                                        <xs:documentation>Льготный рецепт</xs:documentation>
+                                                        <xs:documentation>Рецепт</xs:documentation>
                                                     </xs:annotation>
                                                     <xs:complexType>
                                                         <xs:sequence>
                                                             <xs:element name="prescription_num" type="document_number_200_type">
                                                                 <xs:annotation>
-                                                                    <xs:documentation>Реквизиты документа: номер льготного рецепта
+                                                                    <xs:documentation>Реквизиты документа: номер рецепта
                                                         </xs:documentation>
                                                                 </xs:annotation>
                                                             </xs:element>
                                                             <xs:element name="prescription_date" type="date_type">
                                                                 <xs:annotation>
-                                                                    <xs:documentation>Реквизиты документа: дата регистрации льготного рецепта
+                                                                    <xs:documentation>Реквизиты документа: дата регистрации рецепта
                                                         </xs:documentation>
                                                                 </xs:annotation>
                                                             </xs:element>
                                                             <xs:element name="prescription_series" type="document_number_200_type" minOccurs="0">
                                                                 <xs:annotation>
-                                                                    <xs:documentation>Реквизиты документа: номер серии льготного рецепта
+                                                                    <xs:documentation>Реквизиты документа: номер серии рецепта
                                                         </xs:documentation>
                                                                 </xs:annotation>
                                                             </xs:element>
