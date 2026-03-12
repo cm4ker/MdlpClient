@@ -1,6 +1,7 @@
 ﻿namespace MdlpApiClient
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
     using System.Runtime.CompilerServices;
@@ -71,6 +72,7 @@
         /// <inheritdoc/>
         public void Dispose()
         {
+            IsDisposed = true;
             if (IsAuthenticated)
             {
                 Logout();
@@ -91,6 +93,15 @@
 
         private RequestRateLimiter Limiter { get; set; }
 
+        /// <summary>
+        /// Gets the overridden values of delays between requests.
+        /// </summary>
+        /// <remarks>
+        /// Sample usage:
+        /// client.RequestDelays[nameof(client.SendDocument)] = TimeSpan.FromSeconds(5);
+        /// </remarks>
+        public Dictionary<string, TimeSpan> RequestDelays => Limiter.RequestDelays;
+
         private void RequestRate(double seconds, [CallerMemberName]string methodName = null)
         {
             var correction = IsAuthenticated ? 0.3 : 2;
@@ -105,6 +116,11 @@
         private CredentialsBase Credentials { get; set; }
 
         private X509Certificate2 userCertificate;
+
+        /// <summary>
+        /// Gets a value indicating whether the client is disposed.
+        /// </summary>
+        public bool IsDisposed { get; private set; }
 
         internal bool IsAuthenticated { get; private set; }
 
