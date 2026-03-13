@@ -3,11 +3,12 @@
     using System.Security.Cryptography.X509Certificates;
     using NUnit.Framework;
     using MdlpApiClient.Toolbox;
-    using System.Net;
+    using System.Net.Http;
     using System.Linq;
     using System.Runtime.Serialization;
     using System;
     using System.Collections.Generic;
+    using System.Threading.Tasks;
 
     [TestFixture]
     public class UnitTestsBase : IDisposable
@@ -75,8 +76,22 @@
         public static readonly bool SkipSandboxTestsWhenUnavailable = EnvBoolOrDefault("MDLP_SKIP_SANDBOX_TESTS_WHEN_UNAVAILABLE", true);
 
         private static readonly object SandboxAvailabilitySync = new object();
+        private static readonly HttpClient SandboxProbeClient = CreateSandboxProbeClient();
         private static bool? sandboxIsAvailable;
         private static string sandboxAvailabilityDetails;
+
+        private static HttpClient CreateSandboxProbeClient()
+        {
+            var handler = new HttpClientHandler
+            {
+                AllowAutoRedirect = false
+            };
+
+            return new HttpClient(handler)
+            {
+                Timeout = TimeSpan.FromSeconds(10)
+            };
+        }
 
         static UnitTestsBase()
         {
@@ -145,32 +160,29 @@
 
             try
             {
-                ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
-
-                var request = (HttpWebRequest)WebRequest.Create(probeUrl);
-                request.Method = "GET";
-                request.Timeout = 10000;
-                request.ReadWriteTimeout = 10000;
-                request.AllowAutoRedirect = false;
-
-                using (var response = (HttpWebResponse)request.GetResponse())
+                using (var request = new HttpRequestMessage(HttpMethod.Get, probeUrl))
+                using (var response = SandboxProbeClient.Send(request))
                 {
                     sandboxIsAvailable = true;
                     sandboxAvailabilityDetails = "Probe response: HTTP " + (int)response.StatusCode;
                 }
             }
-            catch (WebException ex)
+            catch (HttpRequestException ex)
             {
-                var httpResponse = ex.Response as HttpWebResponse;
-                if (httpResponse != null)
+                if (ex.StatusCode.HasValue)
                 {
                     sandboxIsAvailable = true;
-                    sandboxAvailabilityDetails = "Probe response: HTTP " + (int)httpResponse.StatusCode;
+                    sandboxAvailabilityDetails = "Probe response: HTTP " + (int)ex.StatusCode.Value;
                     return;
                 }
 
                 sandboxIsAvailable = false;
-                sandboxAvailabilityDetails = "Probe failed with " + ex.Status + ": " + ex.Message;
+                sandboxAvailabilityDetails = "Probe failed with HttpRequestException: " + ex.Message;
+            }
+            catch (TaskCanceledException ex)
+            {
+                sandboxIsAvailable = false;
+                sandboxAvailabilityDetails = "Probe failed with timeout: " + ex.Message;
             }
             catch (Exception ex)
             {
