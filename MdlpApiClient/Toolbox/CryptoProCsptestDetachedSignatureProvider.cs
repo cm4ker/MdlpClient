@@ -1,6 +1,7 @@
 namespace MdlpApiClient.Toolbox
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
     using System.IO;
     using System.Security.Cryptography.X509Certificates;
@@ -45,7 +46,7 @@ namespace MdlpApiClient.Toolbox
             var resolvedCsptestPath = ResolveCsptestPath(csptestPath);
             if (string.IsNullOrWhiteSpace(resolvedCsptestPath))
             {
-                error = new FileNotFoundException("csptest.exe not found.");
+                error = new FileNotFoundException("CryptoPro csptest tool not found.");
                 return false;
             }
 
@@ -86,34 +87,34 @@ namespace MdlpApiClient.Toolbox
                 {
                     if (process == null)
                     {
-                        error = new InvalidOperationException("Failed to start csptest.exe.");
+                        error = new InvalidOperationException("Failed to start csptest process.");
                         return false;
                     }
 
                     if (!process.WaitForExit(timeoutMs))
                     {
                         TryKillProcess(process);
-                        error = new TimeoutException("csptest.exe timeout.");
+                        error = new TimeoutException("csptest process timeout.");
                         return false;
                     }
 
                     if (process.ExitCode != 0)
                     {
-                        error = new InvalidOperationException("csptest.exe exit code: " + process.ExitCode);
+                        error = new InvalidOperationException("csptest process exit code: " + process.ExitCode);
                         return false;
                     }
                 }
 
                 if (!File.Exists(outputFile))
                 {
-                    error = new FileNotFoundException("csptest.exe did not create output signature file.", outputFile);
+                    error = new FileNotFoundException("csptest did not create output signature file.", outputFile);
                     return false;
                 }
 
                 var rawBase64 = File.ReadAllText(outputFile);
                 if (string.IsNullOrWhiteSpace(rawBase64))
                 {
-                    error = new InvalidOperationException("csptest.exe produced empty output.");
+                    error = new InvalidOperationException("csptest produced empty output.");
                     return false;
                 }
 
@@ -129,7 +130,7 @@ namespace MdlpApiClient.Toolbox
                 signature = sb.ToString();
                 if (string.IsNullOrWhiteSpace(signature))
                 {
-                    error = new InvalidOperationException("csptest.exe output contains no base64 data.");
+                    error = new InvalidOperationException("csptest output contains no base64 data.");
                     return false;
                 }
 
@@ -160,20 +161,54 @@ namespace MdlpApiClient.Toolbox
                 return fromEnv;
             }
 
-            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            if (!string.IsNullOrWhiteSpace(programFiles))
+            var fromPath = ResolveFromPathEnvironment();
+            if (!string.IsNullOrWhiteSpace(fromPath))
             {
-                var candidate = Path.Combine(programFiles, "Crypto Pro", "CSP", "csptest.exe");
-                if (File.Exists(candidate))
+                return fromPath;
+            }
+
+            var knownLocation = ResolveFromKnownInstallLocations();
+            if (!string.IsNullOrWhiteSpace(knownLocation))
+            {
+                return knownLocation;
+            }
+
+            return null;
+        }
+
+        private static string ResolveFromPathEnvironment()
+        {
+            var pathValue = Environment.GetEnvironmentVariable("PATH");
+            if (string.IsNullOrWhiteSpace(pathValue))
+            {
+                return null;
+            }
+
+            foreach (var directory in pathValue.Split(Path.PathSeparator))
+            {
+                var normalizedDirectory = directory.Trim().Trim('"');
+                if (string.IsNullOrWhiteSpace(normalizedDirectory) || !Directory.Exists(normalizedDirectory))
                 {
-                    return candidate;
+                    continue;
+                }
+
+                foreach (var executableName in GetExecutableNames())
+                {
+                    var candidate = Path.Combine(normalizedDirectory, executableName);
+                    if (File.Exists(candidate))
+                    {
+                        return candidate;
+                    }
                 }
             }
 
-            var programFilesX86 = Environment.GetEnvironmentVariable("ProgramFiles(x86)");
-            if (!string.IsNullOrWhiteSpace(programFilesX86))
+            return null;
+        }
+
+        private static string ResolveFromKnownInstallLocations()
+        {
+            foreach (var candidate in GetKnownInstallCandidates())
             {
-                var candidate = Path.Combine(programFilesX86, "Crypto Pro", "CSP", "csptest.exe");
                 if (File.Exists(candidate))
                 {
                     return candidate;
@@ -181,6 +216,71 @@ namespace MdlpApiClient.Toolbox
             }
 
             return null;
+        }
+
+        private static IEnumerable<string> GetKnownInstallCandidates()
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                if (!string.IsNullOrWhiteSpace(programFiles))
+                {
+                    yield return Path.Combine(programFiles, "Crypto Pro", "CSP", "csptest.exe");
+                }
+
+                var programFilesX86 = Environment.GetEnvironmentVariable("ProgramFiles(x86)");
+                if (!string.IsNullOrWhiteSpace(programFilesX86))
+                {
+                    yield return Path.Combine(programFilesX86, "Crypto Pro", "CSP", "csptest.exe");
+                }
+
+                yield break;
+            }
+
+            var unixBases = new[]
+            {
+                "/opt/cprocsp/bin",
+                "/opt/cprocsp/sbin/amd64",
+                "/opt/cprocsp/sbin/aarch64"
+            };
+
+            var unixArchitectures = new[]
+            {
+                "amd64",
+                "x86_64",
+                "ia32",
+                "aarch64",
+                "arm64",
+                "mac64"
+            };
+
+            var unixToolNames = new[] { "csptest", "csptestf" };
+
+            foreach (var basePath in unixBases)
+            {
+                foreach (var toolName in unixToolNames)
+                {
+                    yield return Path.Combine(basePath, toolName);
+                }
+
+                foreach (var architecture in unixArchitectures)
+                {
+                    foreach (var toolName in unixToolNames)
+                    {
+                        yield return Path.Combine(basePath, architecture, toolName);
+                    }
+                }
+            }
+        }
+
+        private static IEnumerable<string> GetExecutableNames()
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                return new[] { "csptest.exe", "csptestf.exe", "csptest", "csptestf" };
+            }
+
+            return new[] { "csptest", "csptestf", "csptest.exe", "csptestf.exe" };
         }
 
         private static string NormalizeCertificateIdentifier(string value)

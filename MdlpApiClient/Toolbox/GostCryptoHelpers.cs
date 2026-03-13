@@ -24,13 +24,13 @@
         public static bool AllowInteractiveSigning = false;
 
         /// <summary>
-        /// Allows fallback signing through CryptoPro command line tool (csptest.exe)
+        /// Allows fallback signing through CryptoPro command line tool (csptest)
         /// when .NET SignedCms cannot access the key container.
         /// </summary>
         public static bool AllowCryptoProCliSigningFallback = false;
 
         /// <summary>
-        /// Optional custom path to csptest.exe.
+        /// Optional custom path to csptest executable.
         /// If not set, default CryptoPro locations are probed.
         /// </summary>
         public static string CryptoProCsptestPath = string.Empty;

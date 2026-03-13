@@ -20,6 +20,8 @@
 # Как использовать REST API-клиент
 
 1. Установить провайдер КриптоПро: http://cryptopro.ru/products/cryptopro-csp
+  На Linux/macOS утилита `csptest`/`csptestf` обычно ставится вместе с CryptoPro CSP.
+  При нестандартном расположении укажите полный путь через переменную окружения `MDLP_CRYPTOPRO_CSPTEST_PATH`.
 2. Запросить в техподдержке «Честного знака» доступ к тестовому стенду API: http://api.stage.mdlp.crpt.ru
 3. Добавить в hosts строчку с IP-адресом тестового стенда:
 

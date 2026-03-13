@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/Docs/">
+    <File Path="Docs/list_of_methods.txt" />
+  </Folder>
+  <Project Path="MdlpApiClient.Tests/MdlpApiClient.Tests.csproj" />
+  <Project Path="MdlpApiClient/MdlpApiClient.csproj" />
+</Solution>
