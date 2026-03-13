@@ -42,7 +42,7 @@ namespace MdlpApiClient.Toolbox
                 return false;
             }
 
-            var resolvedCsptestPath = ResolveCsptestPath();
+            var resolvedCsptestPath = ResolveCsptestPath(csptestPath);
             if (string.IsNullOrWhiteSpace(resolvedCsptestPath))
             {
                 error = new FileNotFoundException("csptest.exe not found.");
@@ -86,7 +86,7 @@ namespace MdlpApiClient.Toolbox
                 {
                     if (process == null)
                     {
-                        error = new InvalidOperationException("Failed to start csptest.exe process.");
+                        error = new InvalidOperationException("Failed to start csptest.exe.");
                         return false;
                     }
 
@@ -147,11 +147,11 @@ namespace MdlpApiClient.Toolbox
             }
         }
 
-        private string ResolveCsptestPath()
+        internal static string ResolveCsptestPath(string configuredPath)
         {
-            if (!string.IsNullOrWhiteSpace(csptestPath) && File.Exists(csptestPath))
+            if (!string.IsNullOrWhiteSpace(configuredPath) && File.Exists(configuredPath))
             {
-                return csptestPath;
+                return configuredPath;
             }
 
             var fromEnv = Environment.GetEnvironmentVariable("MDLP_CRYPTOPRO_CSPTEST_PATH");

@@ -1,6 +1,5 @@
 ﻿namespace MdlpApiClient.Toolbox
 {
-    using GostCryptography.Base;
     using System;
     using System.Security.Cryptography;
     using System.Security.Cryptography.X509Certificates;
@@ -47,7 +46,7 @@
         public static int CryptoProCliTimeoutMs = 30000;
 
         internal static Func<IDetachedSignatureProvider> SignedCmsSignatureProviderFactory =
-            () => new GostSignedCmsDetachedSignatureProvider(AllowInteractiveSigning);
+            () => new DotNetSignedCmsDetachedSignatureProvider(AllowInteractiveSigning);
 
         internal static Func<IDetachedSignatureProvider> CryptoProCliSignatureProviderFactory =
             () => new CryptoProCsptestDetachedSignatureProvider(CryptoProCsptestPath, CryptoProContainerPin, CryptoProCliTimeoutMs);
@@ -99,10 +98,8 @@
         /// </summary>
         public static bool IsGostCryptoProviderInstalled()
         {
-            return
-                GostCryptography.Native.CryptoApiHelper.IsInstalled(ProviderType.CryptoPro) &&
-                GostCryptography.Native.CryptoApiHelper.IsInstalled(ProviderType.CryptoPro_2012_512) &&
-                GostCryptography.Native.CryptoApiHelper.IsInstalled(ProviderType.CryptoPro_2012_1024);
+            return !string.IsNullOrWhiteSpace(
+                CryptoProCsptestDetachedSignatureProvider.ResolveCsptestPath(CryptoProCsptestPath));
         }
 
         /// <summary>
@@ -136,7 +133,7 @@
 
                     foreach (var certificate in store.Certificates)
                     {
-                        if (!certificate.HasPrivateKey || !certificate.IsGost())
+                        if (!certificate.HasPrivateKey || !IsLikelyGostCertificate(certificate))
                         {
                             continue;
                         }
@@ -183,6 +180,29 @@
             }
 
             return sb.ToString();
+        }
+
+        private static bool IsLikelyGostCertificate(X509Certificate2 certificate)
+        {
+            if (certificate == null)
+            {
+                return false;
+            }
+
+            var publicKeyOid = certificate.PublicKey?.Oid?.Value;
+            if (IsGostOid(publicKeyOid))
+            {
+                return true;
+            }
+
+            var signatureOid = certificate.SignatureAlgorithm?.Value;
+            return IsGostOid(signatureOid);
+        }
+
+        private static bool IsGostOid(string oid)
+        {
+            return !string.IsNullOrWhiteSpace(oid) &&
+                oid.StartsWith("1.2.643.", StringComparison.Ordinal);
         }
 
         private static bool IsSilentContextError(Exception ex)

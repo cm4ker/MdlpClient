@@ -1,7 +1,11 @@
-using System.IO;
-using Newtonsoft.Json;
-using RestSharp.Serialization.Json;
-using JsonSerializer = Newtonsoft.Json.JsonSerializer;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Reflection;
+using System.Runtime.Serialization;
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace MdlpApiClient.Serialization
 {
@@ -14,6 +18,10 @@ namespace MdlpApiClient.Serialization
     /// </summary>
     internal class ServiceStackSerializer : IRestSerializer
     {
+        private const string DateTimeFormat = "yyyy-MM-ddTHH:mm:ss.fffffffzzz";
+
+        private static readonly JsonSerializerOptions SerializerOptions = CreateSerializerOptions();
+
         static ServiceStackSerializer()
         {
             // // use custom serialization only for our own types
@@ -23,6 +31,71 @@ namespace MdlpApiClient.Serialization
             // JsConfig<CustomDateTime>.DeSerializeFn = s => CustomDateTime.Parse(s);
             // JsConfig<CustomDateTimeSpace>.SerializeFn = c => c;
             // JsConfig<CustomDateTimeSpace>.DeSerializeFn = s => CustomDateTimeSpace.Parse(s);
+        }
+
+        private static JsonSerializerOptions CreateSerializerOptions()
+        {
+            var resolver = new DefaultJsonTypeInfoResolver();
+            resolver.Modifiers.Add(ApplyDataContractConventions);
+
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                TypeInfoResolver = resolver,
+                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            };
+
+            options.Converters.Add(new FlexibleDateTimeConverter(DateTimeFormat));
+
+            return options;
+        }
+
+        private static void ApplyDataContractConventions(JsonTypeInfo typeInfo)
+        {
+            if (typeInfo.Kind != JsonTypeInfoKind.Object)
+            {
+                return;
+            }
+
+            var hasDataContract = typeInfo.Type.GetCustomAttribute<DataContractAttribute>() != null;
+            var hiddenProperties = new List<JsonPropertyInfo>();
+
+            foreach (var property in typeInfo.Properties)
+            {
+                var member = property.AttributeProvider as MemberInfo;
+                if (member == null)
+                {
+                    continue;
+                }
+
+                if (member.GetCustomAttribute<IgnoreDataMemberAttribute>() != null)
+                {
+                    hiddenProperties.Add(property);
+                    continue;
+                }
+
+                var dataMember = member.GetCustomAttribute<DataMemberAttribute>();
+                if (dataMember != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(dataMember.Name))
+                    {
+                        property.Name = dataMember.Name;
+                    }
+
+                    property.IsRequired = dataMember.IsRequired;
+                    continue;
+                }
+
+                if (hasDataContract)
+                {
+                    hiddenProperties.Add(property);
+                }
+            }
+
+            foreach (var property in hiddenProperties)
+            {
+                typeInfo.Properties.Remove(property);
+            }
         }
 
         public string[] SupportedContentTypes
@@ -51,10 +124,12 @@ namespace MdlpApiClient.Serialization
 
         internal T Deserialize<T>(string content)
         {
-            var js = JsonSerializer.CreateDefault();
-            var tr = new StringReader(content);
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return default(T);
+            }
 
-            return js.Deserialize<T>(new JsonTextReader(tr));
+            return JsonSerializer.Deserialize<T>(content, SerializerOptions);
         }
 
         public T Deserialize<T>(IRestResponse response)
@@ -69,24 +144,67 @@ namespace MdlpApiClient.Serialization
 
         public string Serialize(object obj)
         {
-            var js = JsonSerializer.CreateDefault();
-            js.DateFormatHandling = DateFormatHandling.IsoDateFormat;
-            js.DateFormatString = "yyyy-MM-ddTHH\\:mm\\:ss.fffffffzzz";
-
-            return js.Serialize(obj);
+            return JsonSerializer.Serialize(obj, SerializerOptions);
         }
     }
 
-
-    public static class JsonNetHelper
+    internal sealed class FlexibleDateTimeConverter : JsonConverter<DateTime>
     {
-        public static string Serialize(this JsonSerializer s, object value)
+        private readonly string format;
+
+        public FlexibleDateTimeConverter(string format)
         {
-            var tw = new StringWriter();
+            this.format = format;
+        }
 
-            s.Serialize(tw, value);
+        public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType != JsonTokenType.String)
+            {
+                throw new JsonException("DateTime value must be a JSON string.");
+            }
 
-            return tw.GetStringBuilder().ToString();
+            var raw = reader.GetString();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return default(DateTime);
+            }
+
+            DateTime dateTime;
+            if (DateTime.TryParseExact(
+                raw,
+                new[]
+                {
+                    "yyyy-MM-ddTHH:mm:ss.fffffffzzz",
+                    "yyyy-MM-ddTHH:mm:ss.fffffffK",
+                    "yyyy-MM-ddTHH:mm:ss.fffK",
+                    "yyyy-MM-ddTHH:mm:ssK",
+                    "yyyy-MM-ddTHH:mm:ss",
+                    "yyyy-MM-dd HH:mm:ss",
+                    "yyyy-MM-dd",
+                },
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind,
+                out dateTime))
+            {
+                return dateTime;
+            }
+
+            if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out dateTime))
+            {
+                return dateTime;
+            }
+
+            throw new JsonException("Failed to parse DateTime value: " + raw);
+        }
+
+        public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
+        {
+            var normalized = value.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(value, DateTimeKind.Local)
+                : value;
+
+            writer.WriteStringValue(normalized.ToString(format, CultureInfo.InvariantCulture));
         }
     }
 }

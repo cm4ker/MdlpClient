@@ -1,21 +1,20 @@
 namespace MdlpApiClient.Toolbox
 {
-    using GostCryptography.Pkcs;
     using System;
     using System.Security.Cryptography.Pkcs;
     using System.Security.Cryptography.X509Certificates;
     using System.Text;
 
-    internal class GostSignedCmsDetachedSignatureProvider : IDetachedSignatureProvider
+    internal class DotNetSignedCmsDetachedSignatureProvider : IDetachedSignatureProvider
     {
         private readonly bool allowInteractiveSigning;
 
-        public GostSignedCmsDetachedSignatureProvider(bool allowInteractiveSigning)
+        public DotNetSignedCmsDetachedSignatureProvider(bool allowInteractiveSigning)
         {
             this.allowInteractiveSigning = allowInteractiveSigning;
         }
 
-        public string ProviderName => "GostSignedCms";
+        public string ProviderName => "DotNetSignedCms";
 
         public bool TryComputeDetachedSignature(
             X509Certificate2 certificate,
@@ -29,8 +28,7 @@ namespace MdlpApiClient.Toolbox
             try
             {
                 var message = Encoding.UTF8.GetBytes(textToSign);
-
-                var signedCms = new GostSignedCms(new ContentInfo(message), true);
+                var signedCms = new SignedCms(new ContentInfo(message), true);
                 var signer = new CmsSigner(certificate);
 
                 signedCms.ComputeSignature(signer, silent: !allowInteractiveSigning);
