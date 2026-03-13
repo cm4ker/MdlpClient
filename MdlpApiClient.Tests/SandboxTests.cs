@@ -19,13 +19,13 @@
             // Типография для типографий
             var cred = new ResidentCredentials
             {
-                ClientID = "22d12250-6cf3-4a87-b439-f698cfddc498",
-                ClientSecret = "3deb0ba1-26f2-4516-b652-931fe832e3ff",
-                UserID = "10E4921908D24A0D1AD94A29BD0EF51696C6D8DA"
+                ClientID = ClientID1,
+                ClientSecret = ClientSecret1,
+                UserID = SandboxUserThumbprint1,
             };
 
             // подключаемся на этот раз к песочнице
-            return new MdlpClient(cred, MdlpClient.SandboxApiHttps)
+            return new MdlpClient(cred, TestApiBaseUrl)
             {
                 ApplicationName = "SandboxTests v1.0",
                 Tracer = WriteLine,
@@ -37,13 +37,13 @@
             // Автомойка-Чисто
             var cred = new ResidentCredentials
             {
-                ClientID = "2cabd9b7-6042-40d8-97c2-8627f5704aa1",
-                ClientSecret = "1713da9a-2042-465c-80ba-4da4dca3323d",
-                UserID = "CC5D2B6C6457DED657D7EB7C388585D03ADDCBC8"
+                ClientID = ClientID2,
+                ClientSecret = ClientSecret2,
+                UserID = SandboxUserThumbprint2,
             };
 
             // подключаемся на этот раз к песочнице
-            return new MdlpClient(cred, MdlpClient.SandboxApiHttps)
+            return new MdlpClient(cred, TestApiBaseUrl)
             {
                 ApplicationName = "SandboxTests v2.0",
                 Tracer = WriteLine,

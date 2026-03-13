@@ -3,6 +3,7 @@
     using System.Security.Cryptography.X509Certificates;
     using NUnit.Framework;
     using MdlpApiClient.Toolbox;
+    using System.Net;
     using System.Linq;
     using System.Runtime.Serialization;
     using System;
@@ -15,6 +16,33 @@
         {
             var value = Environment.GetEnvironmentVariable(name);
             return string.IsNullOrWhiteSpace(value) ? fallback : value;
+        }
+
+        private static bool EnvBoolOrDefault(string name, bool fallback)
+        {
+            var value = Environment.GetEnvironmentVariable(name);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return fallback;
+            }
+
+            switch (value.Trim().ToLowerInvariant())
+            {
+                case "1":
+                case "true":
+                case "yes":
+                case "on":
+                    return true;
+
+                case "0":
+                case "false":
+                case "no":
+                case "off":
+                    return false;
+
+                default:
+                    return fallback;
+            }
         }
 
         // MDLP test stage data
@@ -37,8 +65,18 @@
         public static readonly string TestApiBaseUrl = EnvOrDefault("MDLP_TEST_API_BASE_URL", MdlpClient.SandboxApiHttps);
         public static readonly string TestCertificateSubjectName = EnvOrDefault("MDLP_CERT_SUBJECT_NAME", @"Тестовый УКЭП им. Юрия Гагарина");
         public static readonly string TestCertificateThumbprint = EnvOrDefault("MDLP_CERT_THUMBPRINT", "0a22506a31c3c0c3c16939213e48cdd5d0c03d90");
+        public static readonly string TestCertificateSerialNumber = EnvOrDefault("MDLP_CERT_SERIAL_NUMBER", string.Empty);
+        public static readonly string CryptoProCsptestPath = EnvOrDefault("MDLP_CRYPTOPRO_CSPTEST_PATH", string.Empty);
+        public static readonly string CryptoProContainerPin = EnvOrDefault("MDLP_CRYPTOPRO_PIN", string.Empty);
         public static readonly string TestUserThumbprint = EnvOrDefault("MDLP_USER_THUMBPRINT", TestCertificateThumbprint);
+        public static readonly string SandboxUserThumbprint1 = EnvOrDefault("MDLP_SANDBOX_USER_THUMBPRINT_1", "10E4921908D24A0D1AD94A29BD0EF51696C6D8DA");
+        public static readonly string SandboxUserThumbprint2 = EnvOrDefault("MDLP_SANDBOX_USER_THUMBPRINT_2", "CC5D2B6C6457DED657D7EB7C388585D03ADDCBC8");
         public static readonly string TestUserID = EnvOrDefault("MDLP_TEST_USER_ID", "7ae327e3f8b19c0a1101979b4a4b8772cf52219f"); // получен при регистрации
+        public static readonly bool SkipSandboxTestsWhenUnavailable = EnvBoolOrDefault("MDLP_SKIP_SANDBOX_TESTS_WHEN_UNAVAILABLE", true);
+
+        private static readonly object SandboxAvailabilitySync = new object();
+        private static bool? sandboxIsAvailable;
+        private static string sandboxAvailabilityDetails;
 
         static UnitTestsBase()
         {
@@ -59,11 +97,86 @@
             // for continuous integration: use certificates installed on the local machine
             // for unit tests run inside Visual Studio: use current user's certificates
             GostCryptoHelpers.DefaultStoreLocation = ci ? StoreLocation.LocalMachine : StoreLocation.CurrentUser;
+
+            // Some local CSP containers require UI interaction when signing (common on ARM64 setups).
+            // Enable interactive fallback by default for local runs; can be overridden by env variable.
+            GostCryptoHelpers.AllowInteractiveSigning = EnvBoolOrDefault("MDLP_ALLOW_INTERACTIVE_SIGNING", !ci);
+            GostCryptoHelpers.AllowCryptoProCliSigningFallback = EnvBoolOrDefault("MDLP_ALLOW_CRYPTOPRO_CLI_FALLBACK", !ci);
+            GostCryptoHelpers.CryptoProCsptestPath = CryptoProCsptestPath;
+            GostCryptoHelpers.CryptoProContainerPin = CryptoProContainerPin;
         }
 
         public UnitTestsBase()
         {
             WriteLine("====> {0} <====", GetType().Name);
+        }
+
+        protected static void RequireSandboxAvailabilityOrIgnore()
+        {
+            if (!SkipSandboxTestsWhenUnavailable)
+            {
+                return;
+            }
+
+            string details;
+            if (!IsSandboxAvailable(out details))
+            {
+                Assert.Ignore("Sandbox API is unavailable in current environment. " + details);
+            }
+        }
+
+        private static bool IsSandboxAvailable(out string details)
+        {
+            lock (SandboxAvailabilitySync)
+            {
+                if (!sandboxIsAvailable.HasValue)
+                {
+                    ProbeSandboxAvailability();
+                }
+
+                details = sandboxAvailabilityDetails;
+                return sandboxIsAvailable.GetValueOrDefault(false);
+            }
+        }
+
+        private static void ProbeSandboxAvailability()
+        {
+            var probeUrl = (TestApiBaseUrl ?? MdlpClient.SandboxApiHttps).TrimEnd('/') + "/documents/doc_size";
+
+            try
+            {
+                ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
+
+                var request = (HttpWebRequest)WebRequest.Create(probeUrl);
+                request.Method = "GET";
+                request.Timeout = 10000;
+                request.ReadWriteTimeout = 10000;
+                request.AllowAutoRedirect = false;
+
+                using (var response = (HttpWebResponse)request.GetResponse())
+                {
+                    sandboxIsAvailable = true;
+                    sandboxAvailabilityDetails = "Probe response: HTTP " + (int)response.StatusCode;
+                }
+            }
+            catch (WebException ex)
+            {
+                var httpResponse = ex.Response as HttpWebResponse;
+                if (httpResponse != null)
+                {
+                    sandboxIsAvailable = true;
+                    sandboxAvailabilityDetails = "Probe response: HTTP " + (int)httpResponse.StatusCode;
+                    return;
+                }
+
+                sandboxIsAvailable = false;
+                sandboxAvailabilityDetails = "Probe failed with " + ex.Status + ": " + ex.Message;
+            }
+            catch (Exception ex)
+            {
+                sandboxIsAvailable = false;
+                sandboxAvailabilityDetails = "Probe failed with " + ex.GetType().Name + ": " + ex.Message;
+            }
         }
 
         public virtual void Dispose()

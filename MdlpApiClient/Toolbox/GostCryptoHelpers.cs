@@ -1,9 +1,8 @@
 ﻿namespace MdlpApiClient.Toolbox
 {
     using GostCryptography.Base;
-    using GostCryptography.Pkcs;
     using System;
-    using System.Security.Cryptography.Pkcs;
+    using System.Security.Cryptography;
     using System.Security.Cryptography.X509Certificates;
     using System.Text;
 
@@ -18,6 +17,82 @@
         /// Only Administrator or LocalSystem accounts can access the LocalMachine stores.
         /// </summary>
         public static StoreLocation DefaultStoreLocation = StoreLocation.LocalMachine;
+
+        /// <summary>
+        /// Allows retrying signature generation in non-silent mode when the CSP key container requires UI interaction.
+        /// Keep this disabled in headless production environments.
+        /// </summary>
+        public static bool AllowInteractiveSigning = false;
+
+        /// <summary>
+        /// Allows fallback signing through CryptoPro command line tool (csptest.exe)
+        /// when .NET SignedCms cannot access the key container.
+        /// </summary>
+        public static bool AllowCryptoProCliSigningFallback = false;
+
+        /// <summary>
+        /// Optional custom path to csptest.exe.
+        /// If not set, default CryptoPro locations are probed.
+        /// </summary>
+        public static string CryptoProCsptestPath = string.Empty;
+
+        /// <summary>
+        /// Optional PIN for key container access in csptest fallback mode.
+        /// </summary>
+        public static string CryptoProContainerPin = string.Empty;
+
+        /// <summary>
+        /// Timeout for csptest execution in milliseconds.
+        /// </summary>
+        public static int CryptoProCliTimeoutMs = 30000;
+
+        internal static Func<IDetachedSignatureProvider> SignedCmsSignatureProviderFactory =
+            () => new GostSignedCmsDetachedSignatureProvider(AllowInteractiveSigning);
+
+        internal static Func<IDetachedSignatureProvider> CryptoProCliSignatureProviderFactory =
+            () => new CryptoProCsptestDetachedSignatureProvider(CryptoProCsptestPath, CryptoProContainerPin, CryptoProCliTimeoutMs);
+
+        static GostCryptoHelpers()
+        {
+            AllowInteractiveSigning = EnvBoolOrDefault("MDLP_ALLOW_INTERACTIVE_SIGNING", false);
+            AllowCryptoProCliSigningFallback = EnvBoolOrDefault("MDLP_ALLOW_CRYPTOPRO_CLI_FALLBACK", true);
+            CryptoProCsptestPath = Environment.GetEnvironmentVariable("MDLP_CRYPTOPRO_CSPTEST_PATH") ?? string.Empty;
+            CryptoProContainerPin = Environment.GetEnvironmentVariable("MDLP_CRYPTOPRO_PIN") ?? string.Empty;
+
+            var timeoutValue = Environment.GetEnvironmentVariable("MDLP_CRYPTOPRO_CLI_TIMEOUT_MS");
+            int timeout;
+            if (int.TryParse(timeoutValue, out timeout) && timeout > 0)
+            {
+                CryptoProCliTimeoutMs = timeout;
+            }
+        }
+
+        private static bool EnvBoolOrDefault(string name, bool fallback)
+        {
+            var value = Environment.GetEnvironmentVariable(name);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return fallback;
+            }
+
+            switch (value.Trim().ToLowerInvariant())
+            {
+                case "1":
+                case "true":
+                case "yes":
+                case "on":
+                    return true;
+
+                case "0":
+                case "false":
+                case "no":
+                case "off":
+                    return false;
+
+                default:
+                    return fallback;
+            }
+        }
 
         /// <summary>
         /// Checks if GOST cryptoprovider CryptoPro is installed.
@@ -42,26 +117,89 @@
                 return null;
             }
 
-            // a thumbprint is a hexadecimal number, compare it case-insensitive
-            using (var store = new X509Store(storeName, storeLocation ?? DefaultStoreLocation))
-            {
-                store.Open(OpenFlags.OpenExistingOnly | OpenFlags.ReadOnly);
+            var normalizedIdentifier = NormalizeCertificateIdentifier(cnameOrThumbprint);
 
-                foreach (var certificate in store.Certificates)
+            // try preferred location first, then fallback to the other one
+            var locations = storeLocation.HasValue
+                ? new[] { storeLocation.Value }
+                : new[]
                 {
-                    if (certificate.HasPrivateKey && certificate.IsGost())
+                    DefaultStoreLocation,
+                    DefaultStoreLocation == StoreLocation.CurrentUser ? StoreLocation.LocalMachine : StoreLocation.CurrentUser
+                };
+
+            foreach (var location in locations)
+            {
+                using (var store = new X509Store(storeName, location))
+                {
+                    store.Open(OpenFlags.OpenExistingOnly | OpenFlags.ReadOnly);
+
+                    foreach (var certificate in store.Certificates)
                     {
-                        var nameMatches = certificate.SubjectName.Name.IndexOf(cnameOrThumbprint, StringComparison.OrdinalIgnoreCase) >= 0;
-                        var thumbprintMatches = StringComparer.OrdinalIgnoreCase.Equals(certificate.Thumbprint, cnameOrThumbprint);
-                        if (nameMatches || thumbprintMatches)
+                        if (!certificate.HasPrivateKey || !certificate.IsGost())
+                        {
+                            continue;
+                        }
+
+                        var subjectName = certificate.SubjectName.Name ?? string.Empty;
+                        var subject = certificate.Subject ?? string.Empty;
+                        var nameMatches = subjectName.IndexOf(cnameOrThumbprint, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                          subject.IndexOf(cnameOrThumbprint, StringComparison.OrdinalIgnoreCase) >= 0;
+
+                        // compare thumbprint/serial numbers in normalized form
+                        var thumbprintMatches = StringComparer.OrdinalIgnoreCase.Equals(
+                            NormalizeCertificateIdentifier(certificate.Thumbprint),
+                            normalizedIdentifier);
+
+                        var serialMatches = StringComparer.OrdinalIgnoreCase.Equals(
+                            NormalizeCertificateIdentifier(certificate.SerialNumber),
+                            normalizedIdentifier);
+
+                        if (nameMatches || thumbprintMatches || serialMatches)
                         {
                             return certificate;
                         }
                     }
                 }
-
-                return null;
             }
+
+            return null;
+        }
+
+        private static string NormalizeCertificateIdentifier(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var sb = new StringBuilder(value.Length);
+            foreach (var c in value)
+            {
+                if (char.IsLetterOrDigit(c))
+                {
+                    sb.Append(char.ToUpperInvariant(c));
+                }
+            }
+
+            return sb.ToString();
+        }
+
+        private static bool IsSilentContextError(Exception ex)
+        {
+            var current = ex;
+            while (current != null)
+            {
+                if (!string.IsNullOrWhiteSpace(current.Message) &&
+                    current.Message.IndexOf("silent", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+
+                current = current.InnerException;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -70,25 +208,57 @@
         /// </summary>
         public static string ComputeDetachedSignature(X509Certificate2 certificate, string textToSign)
         {
-            // The following line opens the private key.
-            // It requires that the current user has permissions to use the private key.
-            // Permissions are given using MMC console, Certificates snap-in.
-            var privateKey = (GostAsymmetricAlgorithm)certificate.GetPrivateKeyAlgorithm();
-            var publicKey = (GostAsymmetricAlgorithm)certificate.GetPublicKeyAlgorithm();
-            var message = Encoding.UTF8.GetBytes(textToSign);
+            if (certificate == null)
+            {
+                throw new ArgumentNullException(nameof(certificate));
+            }
 
-            // Create GOST-compliant signature helper
-            var signedCms = new GostSignedCms(new ContentInfo(message), true);
+            if (textToSign == null)
+            {
+                throw new ArgumentNullException(nameof(textToSign));
+            }
 
-            // The object that has the signer information
-            var signer = new CmsSigner(certificate);
+            if (!certificate.HasPrivateKey)
+            {
+                throw new CryptographicException("Certificate does not have an associated private key.");
+            }
 
-            // Computing the CMS/PKCS#7 signature
-            signedCms.ComputeSignature(signer, true);
+            string signature;
+            Exception signedCmsError;
+            var signedCmsProvider = SignedCmsSignatureProviderFactory();
+            if (signedCmsProvider.TryComputeDetachedSignature(certificate, textToSign, out signature, out signedCmsError))
+            {
+                return signature;
+            }
 
-            // Encoding the CMS/PKCS#7 message
-            var encoded = signedCms.Encode();
-            return Convert.ToBase64String(encoded);
+            Exception cliError = null;
+            if (AllowCryptoProCliSigningFallback)
+            {
+                var cliProvider = CryptoProCliSignatureProviderFactory();
+                if (cliProvider.TryComputeDetachedSignature(certificate, textToSign, out signature, out cliError))
+                {
+                    return signature;
+                }
+            }
+
+            var errorMessage = "Failed to compute detached GOST signature. " +
+                "Ensure the private key container is accessible to the current user";
+
+            if (!AllowInteractiveSigning || !IsSilentContextError(signedCmsError))
+            {
+                errorMessage += " and does not require interactive UI prompts.";
+            }
+            else
+            {
+                errorMessage += " and can be used in interactive mode.";
+            }
+
+            if (AllowCryptoProCliSigningFallback && cliError != null && !string.IsNullOrWhiteSpace(cliError.Message))
+            {
+                errorMessage += " CryptoPro CLI fallback failed: " + cliError.Message;
+            }
+
+            throw new CryptographicException(errorMessage, signedCmsError ?? cliError);
         }
     }
 }

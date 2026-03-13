@@ -7,6 +7,12 @@ namespace MdlpApiClient.Tests
     [TestFixture]
     public class AuthenticationTests : UnitTestsBase
     {
+        [SetUp]
+        public void EnsureSandboxIsAvailable()
+        {
+            RequireSandboxAvailabilityOrIgnore();
+        }
+
         [Test]
         public void AuthenticateNonResident1()
         {

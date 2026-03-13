@@ -11,6 +11,12 @@
             Client = CreateClient();
         }
 
+        [SetUp]
+        public void EnsureSandboxIsAvailable()
+        {
+            RequireSandboxAvailabilityOrIgnore();
+        }
+
         protected MdlpClient Client { get; private set; }
 
         protected virtual MdlpClient CreateClient()

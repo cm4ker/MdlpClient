@@ -9,6 +9,21 @@
     {
         private X509Certificate2 GetTestCertificate()
         {
+            var cert = GostCryptoHelpers.FindCertificate(TestCertificateThumbprint);
+            if (cert != null)
+            {
+                return cert;
+            }
+
+            if (!string.IsNullOrWhiteSpace(TestCertificateSerialNumber))
+            {
+                cert = GostCryptoHelpers.FindCertificate(TestCertificateSerialNumber);
+                if (cert != null)
+                {
+                    return cert;
+                }
+            }
+
             return GostCryptoHelpers.FindCertificate(TestCertificateSubjectName);
         }
 
@@ -22,8 +37,9 @@
         public void CertificateWithPrivateKeyIsLoaded()
         {
             var cert = GetTestCertificate();
-            Assert.IsNotNull(cert);
-            Assert.AreEqual(cert.Thumbprint, TestCertificateThumbprint);
+            Assert.IsNotNull(cert,
+                "GOST certificate was not found. Configure MDLP_CERT_THUMBPRINT / MDLP_CERT_SERIAL_NUMBER / MDLP_CERT_SUBJECT_NAME.");
+            Assert.IsTrue(cert.HasPrivateKey, "Certificate does not have an associated private key.");
         }
 
         [Test]
