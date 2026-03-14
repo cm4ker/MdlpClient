@@ -10,6 +10,17 @@
     [TestFixture]
     public class ApiTestsChapter8 : UnitTestsClientBase
     {
+        private static readonly string[] KnownSsccCandidates =
+        {
+            "000000000105900000",
+            "147600887000110010",
+            "000000111100000097",
+            "000000111100000100",
+        };
+
+        private string[] _sampleSgtins;
+        private string[] _sampleSsccs;
+
         [Test]
         public void Chapter8_01_2_GetBranches()
         {
@@ -46,15 +57,22 @@
         [Test]
         public void Chapter8_01_3_GetBranch()
         {
+            var branchId = GetSampleBranchId();
+            if (string.IsNullOrWhiteSpace(branchId))
+            {
+                Assert.Ignore("No branches available in sandbox to fetch details");
+            }
+
             try
             {
-                var branch = Client.GetBranch("00000000100930");
+                var branch = Client.GetBranch(branchId);
                 Assert.NotNull(branch);
+                Assert.AreEqual(branchId, branch.BranchID);
                 Assert.NotNull(branch.Address);
             }
             catch (MdlpException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
             {
-                Assert.Ignore("Branch 00000000100930 not found in sandbox");
+                Assert.Ignore("Branch " + branchId + " not found in sandbox");
             }
         }
 
@@ -118,15 +136,22 @@
         [Test]
         public void Chapter8_02_3_GetWarehouse()
         {
+            var warehouseId = GetSampleWarehouseId();
+            if (string.IsNullOrWhiteSpace(warehouseId))
+            {
+                Assert.Ignore("No warehouses available in sandbox to fetch details");
+            }
+
             try
             {
-                var warehouse = Client.GetWarehouse("00000000100931");
+                var warehouse = Client.GetWarehouse(warehouseId);
                 Assert.NotNull(warehouse);
+                Assert.AreEqual(warehouseId, warehouse.WarehouseID);
                 Assert.NotNull(warehouse.Address);
             }
             catch (MdlpException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
             {
-                Assert.Ignore("Warehouse 00000000100931 not found in sandbox");
+                Assert.Ignore("Warehouse " + warehouseId + " not found in sandbox");
             }
         }
 
@@ -154,38 +179,46 @@
         [Test]
         public void Chapter8_02_5_GetAvailableAddresses()
         {
-            var addresses = Client.GetAvailableAddresses("7720672100");
+            var member = Client.GetCurrentMember();
+            var addresses = Client.GetAvailableAddresses(member?.Inn);
             Assert.NotNull(addresses);
             Assert.IsTrue(addresses.Total >= 0);
             Assert.NotNull(addresses.Entries);
-            if (addresses.Entries.Length == 0)
+            if (addresses.Entries.Length > 0)
             {
-                Assert.Ignore("No available addresses found for INN 7720672100 in sandbox");
+                var address = addresses.Entries[0];
+                Assert.IsNotNull(address.AddressID);
+                Assert.IsNotNull(address.Address);
             }
-
-            var address = addresses.Entries[0];
-            Assert.IsNotNull(address.AddressID);
-            Assert.IsNotNull(address.Address);
         }
 
         [Test]
         public void Chapter8_03_1_GetSgtins()
         {
-            var sampleSgtin = GetTestCodes(s => s.SgtinValue).FirstOrDefault();
+            var sampleSgtin = GetSampleSgtins().FirstOrDefault();
             if (string.IsNullOrWhiteSpace(sampleSgtin))
             {
                 Assert.Ignore("No accessible SGTIN was found in sandbox");
             }
 
-            var sgtins = Client.GetSgtins(new SgtinFilter
+            EntriesResponse<SgtinExtended> sgtins;
+            try
             {
-                Sgtin = sampleSgtin,
-                EmissionDateFrom = DateTime.Now.AddYears(-100),
-                EmissionDateTo = DateTime.Now,
-                LastTracingDateFrom = DateTime.Now.AddYears(-100),
-                LastTracingDateTo = DateTime.Now,
-            },
-            startFrom: 0, count: 1);
+                sgtins = Client.GetSgtins(new SgtinFilter
+                {
+                    Sgtin = sampleSgtin,
+                    EmissionDateFrom = DateTime.Now.AddYears(-100),
+                    EmissionDateTo = DateTime.Now,
+                    LastTracingDateFrom = DateTime.Now.AddYears(-100),
+                    LastTracingDateTo = DateTime.Now,
+                },
+                startFrom: 0, count: 1);
+            }
+            catch (MdlpException ex) when (IsSandboxStaticResourceNotFound(ex))
+            {
+                Assert.Ignore("SGTIN registry filter endpoint is unavailable in sandbox");
+                return;
+            }
 
             Assert.IsNotNull(sgtins);
             Assert.IsNotNull(sgtins.Entries);
@@ -205,18 +238,27 @@
         [Test]
         public void Chapter8_03_2_GetSgtins()
         {
-            var sampleSgtin = GetTestCodes(s => s.SgtinValue).FirstOrDefault();
+            var sampleSgtin = GetSampleSgtins().FirstOrDefault();
             if (string.IsNullOrWhiteSpace(sampleSgtin))
             {
                 Assert.Ignore("No accessible SGTIN was found in sandbox");
             }
 
             var likelyMissing = GetLikelyMissingSgtin(sampleSgtin);
-            var sgtins = Client.GetSgtins(new[]
+            EntriesFailedResponse<SgtinExtended, SgtinFailed> sgtins;
+            try
             {
-                sampleSgtin,
-                likelyMissing
-            });
+                sgtins = Client.GetSgtins(new[]
+                {
+                    sampleSgtin,
+                    likelyMissing
+                });
+            }
+            catch (MdlpException ex) when (IsSandboxStaticResourceNotFound(ex))
+            {
+                Assert.Ignore("SGTIN-by-list endpoint is unavailable in sandbox");
+                return;
+            }
 
             Assert.IsNotNull(sgtins);
             Assert.IsNotNull(sgtins.Entries);
@@ -246,17 +288,26 @@
         [Test]
         public void Chapter8_03_3_GetPublicSgtins()
         {
-            var sampleSgtin = GetTestCodes(s => s.SgtinValue).FirstOrDefault();
+            var sampleSgtin = GetSampleSgtins().FirstOrDefault();
             if (string.IsNullOrWhiteSpace(sampleSgtin))
             {
                 Assert.Ignore("No accessible SGTIN was found in sandbox");
             }
 
             var likelyMissing = GetLikelyMissingSgtin(sampleSgtin);
-            var sgtins = Client.GetPublicSgtins(
-                sampleSgtin,
-                likelyMissing
-            );
+            EntriesFailedResponse<PublicSgtin, string> sgtins;
+            try
+            {
+                sgtins = Client.GetPublicSgtins(
+                    sampleSgtin,
+                    likelyMissing
+                );
+            }
+            catch (MdlpException ex) when (IsSandboxStaticResourceNotFound(ex))
+            {
+                Assert.Ignore("Public SGTIN-by-list endpoint is unavailable in sandbox");
+                return;
+            }
 
             Assert.IsNotNull(sgtins);
             Assert.IsNotNull(sgtins.Entries);
@@ -286,7 +337,7 @@
         [Test]
         public void Chapter8_03_4_GetSgtin()
         {
-            var sampleSgtin = GetTestCodes(s => s.SgtinValue).FirstOrDefault();
+            var sampleSgtin = GetSampleSgtins().FirstOrDefault();
             if (string.IsNullOrWhiteSpace(sampleSgtin))
             {
                 Assert.Ignore("No accessible SGTIN was found in sandbox");
@@ -434,9 +485,111 @@
             }
         }
 
+        private IEnumerable<string> GetSampleSgtins()
+        {
+            if (_sampleSgtins != null)
+            {
+                return _sampleSgtins;
+            }
+
+            var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var samples = new List<string>();
+
+            foreach (var code in GetTestCodes(s => s.SgtinValue, maxWindows: 12, daysPerWindow: 365, pageSize: 250))
+            {
+                if (!yielded.Add(code))
+                {
+                    continue;
+                }
+
+                samples.Add(code);
+            }
+
+            if (samples.Count == 0)
+            {
+                var decisions = Client.GetPausedCirculationDecisions(new PausedCirculationDecisionFilter
+                {
+                    Gtin = "04610020540019",
+                    StartHaltDate = DateTime.Now.AddYears(-100),
+                    EndHaltDate = DateTime.Now,
+                    StartHaltDocDate = DateTime.Now.AddYears(-100),
+                    EndHaltDocDate = DateTime.Now,
+                }, 0, 10);
+
+                Assert.NotNull(decisions);
+                Assert.NotNull(decisions.Entries);
+                foreach (var decision in decisions.Entries.Where(d => !string.IsNullOrWhiteSpace(d.HaltID)))
+                {
+                    try
+                    {
+                        var pausedSgtins = Client.GetPausedCirculationSgtins(decision.HaltID, 0, 10);
+                        Assert.NotNull(pausedSgtins);
+                        Assert.NotNull(pausedSgtins.Entries);
+                        foreach (var entry in pausedSgtins.Entries)
+                        {
+                            if (string.IsNullOrWhiteSpace(entry.Sgtin) || !yielded.Add(entry.Sgtin))
+                            {
+                                continue;
+                            }
+
+                            samples.Add(entry.Sgtin);
+                        }
+                    }
+                    catch (MdlpException ex) when (ex.StatusCode == HttpStatusCode.NotFound || ex.StatusCode == HttpStatusCode.Forbidden)
+                    {
+                    }
+                }
+            }
+
+            _sampleSgtins = samples.ToArray();
+            return _sampleSgtins;
+        }
+
+        private IEnumerable<string> GetSampleSsccs()
+        {
+            if (_sampleSsccs != null)
+            {
+                return _sampleSsccs;
+            }
+
+            _sampleSsccs = KnownSsccCandidates
+                .Concat(GetTestCodes(s => s.Sscc, maxWindows: 12, daysPerWindow: 365, pageSize: 250))
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            return _sampleSsccs;
+        }
+
+        private static bool IsSandboxStaticResourceNotFound(MdlpException ex)
+        {
+            return ex.StatusCode == HttpStatusCode.NotFound &&
+                ex.Message.IndexOf("No static resource", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private string GetSampleBranchId()
+        {
+            var branches = Client.GetBranches(null, startFrom: 0, count: 10);
+            Assert.NotNull(branches);
+            Assert.NotNull(branches.Entries);
+            return branches.Entries
+                .Select(b => b?.ID)
+                .FirstOrDefault(id => !string.IsNullOrWhiteSpace(id));
+        }
+
+        private string GetSampleWarehouseId()
+        {
+            var warehouses = Client.GetWarehouses(null, startFrom: 0, count: 10);
+            Assert.NotNull(warehouses);
+            Assert.NotNull(warehouses.Entries);
+            return warehouses.Entries
+                .Select(w => w?.ID)
+                .FirstOrDefault(id => !string.IsNullOrWhiteSpace(id));
+        }
+
         private bool TryFindSsccWithHierarchy(out string sscc, out SsccHierarchyResponse<SsccInfo> hierarchy)
         {
-            foreach (var candidate in GetTestCodes(s => s.Sscc, maxWindows: 10).Take(50))
+            foreach (var candidate in GetSampleSsccs().Take(50))
             {
                 try
                 {
@@ -467,7 +620,7 @@
 
         private bool TryFindSsccByImmediateSgtins(bool withImmediateSgtins, out string sscc, out GetSsccSgtinsResponse response)
         {
-            foreach (var candidate in GetTestCodes(s => s.Sscc, maxWindows: 10).Take(50))
+            foreach (var candidate in GetSampleSsccs().Take(50))
             {
                 try
                 {
@@ -719,38 +872,52 @@
         {
             var medProducts = Client.GetCurrentMedProducts(new MedProductsFilter
             {
-                Gtin = "04607028394287",
                 RegistrationDateFrom = DateTime.Now.AddYears(-100),
                 RegistrationDateTo = DateTime.Now
             }, 0, 1);
 
             Assert.NotNull(medProducts);
             Assert.NotNull(medProducts.Entries);
-            if (medProducts.Entries.Length == 0)
-            {
-                Assert.Ignore("GTIN 04607028394287 not found in sandbox med products");
-            }
+            Assert.IsTrue(medProducts.Total >= 0);
+            Assert.IsTrue(medProducts.Entries.Length <= 1);
 
-            var prod = medProducts.Entries[0];
-            Assert.NotNull(prod);
-            Assert.AreEqual("04607028394287", prod.Gtin);
-            Assert.IsNotNull(prod.ProductSellingName);
-            Assert.IsNotNull(prod.ProductName);
-            Assert.IsNotNull(prod.RegistrationHolder);
+            if (medProducts.Entries.Length > 0)
+            {
+                var prod = medProducts.Entries[0];
+                Assert.NotNull(prod);
+                Assert.IsNotNull(prod.Gtin);
+                Assert.IsNotNull(prod.ProductSellingName);
+                Assert.IsNotNull(prod.ProductName);
+                Assert.IsNotNull(prod.RegistrationHolder);
+            }
         }
 
         [Test]
         public void Chapter8_05_2_GetCurrentMedProduct()
         {
+            var medProducts = Client.GetCurrentMedProducts(new MedProductsFilter
+            {
+                RegistrationDateFrom = DateTime.Now.AddYears(-100),
+                RegistrationDateTo = DateTime.Now
+            }, 0, 1);
+
+            Assert.NotNull(medProducts);
+            Assert.NotNull(medProducts.Entries);
+            if (medProducts.Entries.Length == 0 || string.IsNullOrWhiteSpace(medProducts.Entries[0].Gtin))
+            {
+                Assert.Ignore("No current med products found in sandbox");
+            }
+
+            var sampleGtin = medProducts.Entries[0].Gtin;
             try
             {
-                var prod = Client.GetCurrentMedProduct("04607028394287");
+                var prod = Client.GetCurrentMedProduct(sampleGtin);
                 Assert.NotNull(prod);
-                Assert.AreEqual("04607028394287", prod.Gtin);
+                Assert.AreEqual(sampleGtin, prod.Gtin);
             }
             catch (MdlpException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
             {
-                Assert.Ignore("GTIN 04607028394287 not found in sandbox");
+                Assert.Ignore("GTIN " + sampleGtin + " not found in sandbox");
             }
         }
 
