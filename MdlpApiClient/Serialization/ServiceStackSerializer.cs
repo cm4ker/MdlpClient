@@ -159,6 +159,13 @@ namespace MdlpApiClient.Serialization
 
         public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            // Handle Unix timestamp in milliseconds returned as a JSON number
+            if (reader.TokenType == JsonTokenType.Number)
+            {
+                var ms = reader.GetInt64();
+                return DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime;
+            }
+
             if (reader.TokenType != JsonTokenType.String)
             {
                 throw new JsonException("DateTime value must be a JSON string.");

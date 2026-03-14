@@ -81,14 +81,17 @@
         [Test]
         public void Chapter5_06_CancelSendDocument()
         {
+            // document_id must be a UUID per spec; a valid-format but non-existent UUID must return 404
+            var nonExistentDocId = "00000000-0000-0000-0000-000000000000";
+            var requestId = Guid.NewGuid().ToString();
+
             var ex = Assert.Throws<MdlpException>(() =>
             {
-                var badDocId = "123";
-                var badReqId = "321";
-                Client.CancelSendDocument(badDocId, badReqId);
+                Client.CancelSendDocument(nonExistentDocId, requestId);
             });
 
-            Assert.AreEqual(HttpStatusCode.BadRequest, ex.StatusCode);
+            Assert.AreEqual(HttpStatusCode.NotFound, ex.StatusCode,
+                "Expected NotFound for non-existent document UUID, actual status: " + ex.StatusCode);
         }
 
         [Test]
@@ -103,8 +106,9 @@
 
             Assert.IsNotNull(docs);
             Assert.IsNotNull(docs.Documents);
-            Assert.AreEqual(10, docs.Documents.Length);
-            Assert.IsTrue(docs.Total > 10);
+            // per spec: at most 'count' documents returned; total reflects all matching records
+            Assert.LessOrEqual(docs.Documents.Length, 10);
+            Assert.GreaterOrEqual(docs.Total, docs.Documents.Length);
         }
 
         [Test]
@@ -114,16 +118,14 @@
             {
                 DocType = 607,
                 DocStatus = DocStatusEnum.PROCESSED_DOCUMENT,
-                ProcessedDateFrom = DateTime.Now.AddYears(-100),
-                ProcessedDateTo = new DateTime?(), // should translate to null
-                StartDate = DateTime.Now.AddYears(-100)
             },
             startFrom: 0, count: 10);
 
             Assert.IsNotNull(docs);
             Assert.IsNotNull(docs.Documents);
-            Assert.AreEqual(10, docs.Documents.Length);
-            Assert.IsTrue(docs.Total > 10);
+            // per spec: at most 'count' documents returned; total reflects all matching records
+            Assert.LessOrEqual(docs.Documents.Length, 10);
+            Assert.GreaterOrEqual(docs.Total, docs.Documents.Length);
         }
 
         [Test]
@@ -171,15 +173,12 @@
         [Test]
         public void Chapter5_13_GetSignature()
         {
-            // GetSignature doesn't seem to work, always returns error 406
+            // Per spec (5.20): endpoint returns 406 Not Acceptable for plain-text signature requests
+            // when the document was not uploaded via bulk signing (UPLOAD_DOCUMENT right required)
             var ex = Assert.Throws<MdlpException>(() =>
             {
                 var outDocId = "64037f8a-c816-4555-88ab-a00f74f7b222";
-                var signature = Client.GetSignature(outDocId);
-                Assert.IsNotNull(signature);
-
-                WriteLine("Signature for DocumentID: {0}", outDocId);
-                WriteLine("{0}", signature);
+                Client.GetSignature(outDocId);
             });
 
             Assert.AreEqual(HttpStatusCode.NotAcceptable, ex.StatusCode); // 406

@@ -75,6 +75,7 @@
         public static readonly string TestUserID = EnvOrDefault("MDLP_TEST_USER_ID", "7ae327e3f8b19c0a1101979b4a4b8772cf52219f"); // получен при регистрации
         public static readonly bool SkipSandboxTestsWhenUnavailable = EnvBoolOrDefault("MDLP_SKIP_SANDBOX_TESTS_WHEN_UNAVAILABLE", true);
         public static readonly bool EnableLegacyIntegrationTests = EnvBoolOrDefault("MDLP_ENABLE_LEGACY_INTEGRATION_TESTS", false);
+        public static readonly string LegacyIntegrationTestsAllowRaw = EnvOrDefault("MDLP_ENABLE_LEGACY_INTEGRATION_TESTS_ALLOW", string.Empty);
 
         private static readonly HashSet<string> LegacyIntegrationFixtureNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -87,6 +88,23 @@
             "ApiTestsMisc",
             "SandboxTests",
         };
+
+        private static readonly HashSet<string> RestoredLegacyIntegrationTests = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            // Chapter 5: document operations
+            "MdlpApiClient.Tests.ApiTestsChapter5.Chapter5_06_CancelSendDocument",
+            "MdlpApiClient.Tests.ApiTestsChapter5.Chapter5_07_GetOutcomeDocuments",
+            "MdlpApiClient.Tests.ApiTestsChapter5.Chapter5_08_GetIncomeDocuments",
+            "MdlpApiClient.Tests.ApiTestsChapter5.Chapter5_13_GetSignature",
+            // Note: Chapter5_05 (GET /documents/doc_size) and Chapter5_14 (skzkm-traces)
+            // currently return 404 on the sandbox and are kept frozen.
+        };
+
+        private static readonly string[] LegacyIntegrationAllowPatterns = (LegacyIntegrationTestsAllowRaw ?? string.Empty)
+            .Split(new[] { ',', ';', '|', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Trim())
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .ToArray();
 
         private static readonly object SandboxAvailabilitySync = new object();
         private static readonly HttpClient SandboxProbeClient = CreateSandboxProbeClient();
@@ -222,13 +240,46 @@
             return LegacyIntegrationFixtureNames.Contains(shortName);
         }
 
+        private static bool IsAllowedLegacyIntegrationTest()
+        {
+            var test = TestContext.CurrentContext?.Test;
+            if (test == null)
+            {
+                return false;
+            }
+
+            var fullName = test.FullName ?? string.Empty;
+            if (RestoredLegacyIntegrationTests.Contains(fullName))
+            {
+                return true;
+            }
+
+            if (LegacyIntegrationAllowPatterns.Length == 0)
+            {
+                return false;
+            }
+
+            var testName = test.Name ?? string.Empty;
+            foreach (var pattern in LegacyIntegrationAllowPatterns)
+            {
+                if (fullName.IndexOf(pattern, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    testName.IndexOf(pattern, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         [SetUp]
         public void SetupBeforeEachTest()
         {
-            if (!EnableLegacyIntegrationTests && IsLegacyIntegrationFixture())
+            if (!EnableLegacyIntegrationTests && IsLegacyIntegrationFixture() && !IsAllowedLegacyIntegrationTest())
             {
                 Assert.Ignore("Legacy integration tests are temporarily disabled. " +
-                    "Set MDLP_ENABLE_LEGACY_INTEGRATION_TESTS=true to run them.");
+                    "Set MDLP_ENABLE_LEGACY_INTEGRATION_TESTS=true to run them all, or " +
+                    "MDLP_ENABLE_LEGACY_INTEGRATION_TESTS_ALLOW=<pattern> to run one by one.");
             }
 
             WriteLine("------> {0} <------", TestContext.CurrentContext.Test.MethodName);

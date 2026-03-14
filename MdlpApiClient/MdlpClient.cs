@@ -3,8 +3,7 @@
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Linq;
-    using System.Runtime.CompilerServices;
+    using System.Linq;    using System.Net;    using System.Runtime.CompilerServices;
     using System.Security.Cryptography.X509Certificates;
     using System.Text;
     using System.Xml;
@@ -230,7 +229,12 @@
                 }
 
                 // finally, throw it
-                throw new MdlpException(response.StatusCode, errorMessage, errorResponse, response.ErrorException);
+                // prefer the application-level status code from the JSON body when available
+                // (some sandbox responses send HTTP 400 but JSON status 406, etc.)
+                var statusCode = (errorResponse != null && errorResponse.StatusCode >= 200)
+                    ? (HttpStatusCode)errorResponse.StatusCode
+                    : response.StatusCode;
+                throw new MdlpException(statusCode, errorMessage, errorResponse, response.ErrorException);
             }
         }
 
