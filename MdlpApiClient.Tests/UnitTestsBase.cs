@@ -98,6 +98,45 @@
             "MdlpApiClient.Tests.ApiTestsChapter5.Chapter5_13_GetSignature",
             // Note: Chapter5_05 (GET /documents/doc_size) and Chapter5_14 (skzkm-traces)
             // currently return 404 on the sandbox and are kept frozen.
+            // Chapter 7: registries (EGRUL, EGRIP, RAFP, FIAS, ESKLP, licenses, addresses, etc.)
+            "MdlpApiClient.Tests.ApiTestsChapter7.Chapter7_01_1_GetEgrulRegistryEntry",
+            "MdlpApiClient.Tests.ApiTestsChapter7.Chapter7_02_1_GetEgripRegistryEntry",
+            "MdlpApiClient.Tests.ApiTestsChapter7.Chapter7_03_1_GetRafpRegistryEntry",
+            "MdlpApiClient.Tests.ApiTestsChapter7.Chapter7_05_3_GetFiasAddress",
+            "MdlpApiClient.Tests.ApiTestsChapter7.Chapter7_06_1_GetProductionLicenses",
+            "MdlpApiClient.Tests.ApiTestsChapter7.Chapter7_06_2_GetProductionLicenses",
+            "MdlpApiClient.Tests.ApiTestsChapter7.Chapter7_07_1_GetPharmacyLicenses",
+            "MdlpApiClient.Tests.ApiTestsChapter7.Chapter7_07_2_GetPharmacyLicenses",
+            "MdlpApiClient.Tests.ApiTestsChapter7.Chapter7_08_1_GetCurrentAddresses",
+            "MdlpApiClient.Tests.ApiTestsChapter7.Chapter7_09_1_GetCountries",
+            "MdlpApiClient.Tests.ApiTestsChapter7.Chapter7_09_2_GetRegions",
+            "MdlpApiClient.Tests.ApiTestsChapter7.Chapter7_10_1_GetEsklpInfo",
+            "MdlpApiClient.Tests.ApiTestsChapter7.Chapter7_11_1_GetCustomsPoints",
+            // Note: Chapter7_05_1 (GET /reestr/fias/addrobj) and Chapter7_05_2 (GET /reestr/fias/house)
+            // are [Ignore]d because those endpoints were removed from the MDLP API.
+            // Chapter 6: user management, account systems, rights
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_01_01_RegisterAccountSystem",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_01_02_RegisterUser",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_01_03_RegisterUser",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_01_04_GetUserInfo",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_01_05_GetCurrentLanguage",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_01_06_UpdateUserProfile",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_01_07_GetCurrentUserInfo",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_01_08_SetCurrentLanguage",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_01_09_GetCurrentCertificates",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_01_10_GetUserCertificates",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_01_11_GetAccountSystem",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_03_01_DeleteUser",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_03_02_DeleteAccountSystem",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_04_01_AddUserCertificate",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_04_02_DeleteUserCertificate",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_05_01_ChangeUserPassword",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_06_01_GetRights",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_06_02_GetCurrentRights",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_06_03456789_CreateUpdateDeleteRightsGroup",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_06_11_GetRightsGroups",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_07_02_GetUsers",
+            "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_08_02_GetAccountSystems",
         };
 
         private static readonly string[] LegacyIntegrationAllowPatterns = (LegacyIntegrationTestsAllowRaw ?? string.Empty)

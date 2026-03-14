@@ -2,6 +2,7 @@
 {
     using System;
     using System.Runtime.Serialization;
+    using System.Text.Json.Serialization;
 
     /// <summary>
     /// 8.8.1. Метод фильтрации по субъектам обращения
@@ -135,12 +136,14 @@
         /// КПП (дубликат реквизита, косяк проектирования API)
         /// </summary>
         [DataMember(Name = "kpp")]
+        [JsonIgnore]
         public string kpp { get; set; }
 
         /// <summary>
         /// ОГРН (дубликат реквизита, косяк проектирования API)
         /// </summary>
         [DataMember(Name = "ogrn")]
+        [JsonIgnore]
         public string ogrn { get; set; }
     }
 }

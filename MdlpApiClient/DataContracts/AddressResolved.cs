@@ -20,7 +20,7 @@
         /// <summary>
         /// Адрес установки (код ФИАС)
         /// </summary>
-        [DataMember(Name = "houseguid", IsRequired = true)]
+        [DataMember(Name = "houseguid", IsRequired = false)]
         public string HouseGuid { get; set; }
 
         /// <summary>

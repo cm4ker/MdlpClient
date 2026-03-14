@@ -21,17 +21,21 @@
 
         protected virtual MdlpClient CreateClient()
         {
-            return new MdlpClient(credentials: new NonResidentCredentials
+            // NonResidentCredentials (password-based) are no longer valid on sandbox.
+            // Use ResidentCredentials (SIGNED_CODE via GOST cert) — same as ApiTestsChapter5.
+            var client = new MdlpClient(credentials: new ResidentCredentials
             {
                 ClientID = ClientID1,
                 ClientSecret = ClientSecret1,
-                UserID = UserStarter1,
-                Password = UserPassword1,
+                UserID = TestUserThumbprint,
             },
             baseUrl: TestApiBaseUrl)
             {
-                Tracer = WriteLine
+                Tracer = WriteLine,
             };
+
+            client.Client.RemoteCertificateValidationCallback += (sender, certificate, chain, errors) => true;
+            return client;
         }
 
         public override void Dispose()

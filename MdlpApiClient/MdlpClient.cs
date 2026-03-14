@@ -191,12 +191,13 @@
                         contentType = contentType.Substring(0, semicolonIndex).Trim();
                     }
 
-                    // Try to deserialize error response DTO
-                    if (Serializer.SupportedContentTypes.Contains(contentType))
+                    // Try to deserialize error response DTO (also handles application/problem+json)
+                    if (Serializer.SupportedContentTypes.Contains(contentType) || contentType == "application/problem+json")
                     {
                         errorResponse = Serializer.Deserialize<ErrorResponse>(response);
                         contentMessage = string.Join(". ", new[]
                         {
+                            errorResponse.Title,
                             errorResponse.Error,
                             errorResponse.Message,
                             errorResponse.Description,

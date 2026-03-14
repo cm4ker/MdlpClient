@@ -1,4 +1,4 @@
-﻿namespace MdlpApiClient.DataContracts
+namespace MdlpApiClient.DataContracts
 {
     using System;
     using System.Runtime.Serialization;
@@ -56,5 +56,11 @@
 
         [DataMember(Name = "violations")]
         public string[] Violations { get; set; }
+        // RFC 7807 Problem Details fields (application/problem+json)
+        [DataMember(Name = "title")]
+        public string Title { get; set; }
+
+        [DataMember(Name = "type")]
+        public string Type { get; set; }
     }
 }

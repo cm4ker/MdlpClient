@@ -8,8 +8,8 @@
     [DataContract]
     public class AddTrustedPartnersResponse
     {
-        [DataMember(Name = "code", IsRequired = true)]
-        public string Code { get; set; }
+        [DataMember(Name = "code", IsRequired = false)]
+        public int Code { get; set; }
 
         [DataMember(Name = "failed_partners", IsRequired = false)]
         public string[] FailedPartners { get; set; }

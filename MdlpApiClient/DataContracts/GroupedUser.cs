@@ -36,5 +36,11 @@
         /// </remarks>
         [DataMember(Name = "login", IsRequired = false)]
         public string Login { get; set; }
+
+        /// <summary>
+        /// Электронная почта пользователя
+        /// </summary>
+        [DataMember(Name = "email", IsRequired = false)]
+        public string Email { get; set; }
     }
 }

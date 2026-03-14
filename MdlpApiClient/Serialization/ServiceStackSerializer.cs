@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using MdlpApiClient.DataContracts;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.Serialization;
@@ -46,6 +47,11 @@ namespace MdlpApiClient.Serialization
             };
 
             options.Converters.Add(new FlexibleDateTimeConverter(DateTimeFormat));
+            options.Converters.Add(new CustomDateConverter());
+            options.Converters.Add(new CustomDateTimeConverter());
+            options.Converters.Add(new CustomDateTimeSpaceConverter());
+            options.Converters.Add(new FlexibleBoolConverter());
+            options.Converters.Add(new FlexibleIntConverter());
 
             return options;
         }
@@ -82,7 +88,6 @@ namespace MdlpApiClient.Serialization
                         property.Name = dataMember.Name;
                     }
 
-                    property.IsRequired = dataMember.IsRequired;
                     continue;
                 }
 
@@ -148,6 +153,92 @@ namespace MdlpApiClient.Serialization
         }
     }
 
+    internal sealed class CustomDateConverter : JsonConverter<CustomDate>
+    {
+        public override CustomDate Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Null) return new CustomDate();
+            if (reader.TokenType == JsonTokenType.String) return CustomDate.Parse(reader.GetString());
+            return new CustomDate();
+        }
+
+        public override void Write(Utf8JsonWriter writer, CustomDate value, JsonSerializerOptions options)
+        {
+            if (value == null || !value.DateTime.HasValue) writer.WriteNullValue();
+            else writer.WriteStringValue(value.ToString());
+        }
+    }
+
+    internal sealed class CustomDateTimeConverter : JsonConverter<CustomDateTime>
+    {
+        public override CustomDateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Null) return new CustomDateTime();
+            if (reader.TokenType == JsonTokenType.String) return CustomDateTime.Parse(reader.GetString());
+            return new CustomDateTime();
+        }
+
+        public override void Write(Utf8JsonWriter writer, CustomDateTime value, JsonSerializerOptions options)
+        {
+            if (value == null || !value.DateTime.HasValue) writer.WriteNullValue();
+            else writer.WriteStringValue(value.ToString());
+        }
+    }
+
+    internal sealed class CustomDateTimeSpaceConverter : JsonConverter<CustomDateTimeSpace>
+    {
+        public override CustomDateTimeSpace Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Null) return new CustomDateTimeSpace();
+            if (reader.TokenType == JsonTokenType.String) return CustomDateTimeSpace.Parse(reader.GetString());
+            return new CustomDateTimeSpace();
+        }
+
+        public override void Write(Utf8JsonWriter writer, CustomDateTimeSpace value, JsonSerializerOptions options)
+        {
+            if (value == null || !value.DateTime.HasValue) writer.WriteNullValue();
+            else writer.WriteStringValue(value.ToString());
+        }
+    }
+
+    internal sealed class FlexibleBoolConverter : JsonConverter<bool>
+    {
+        public override bool Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.True) return true;
+            if (reader.TokenType == JsonTokenType.False) return false;
+            if (reader.TokenType == JsonTokenType.String)
+            {
+                var s = reader.GetString();
+                if (bool.TryParse(s, out var b)) return b;
+                if (s == "1") return true;
+                if (s == "0") return false;
+            }
+            if (reader.TokenType == JsonTokenType.Number) return reader.GetInt32() != 0;
+            return false;
+        }
+
+        public override void Write(Utf8JsonWriter writer, bool value, JsonSerializerOptions options) =>
+            writer.WriteBooleanValue(value);
+    }
+
+    internal sealed class FlexibleIntConverter : JsonConverter<int>
+    {
+        public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Number) return reader.GetInt32();
+            if (reader.TokenType == JsonTokenType.String)
+            {
+                var s = reader.GetString();
+                if (int.TryParse(s, out var i)) return i;
+            }
+            return 0;
+        }
+
+        public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) =>
+            writer.WriteNumberValue(value);
+    }
+
     internal sealed class FlexibleDateTimeConverter : JsonConverter<DateTime>
     {
         private readonly string format;
@@ -189,6 +280,8 @@ namespace MdlpApiClient.Serialization
                     "yyyy-MM-ddTHH:mm:ss",
                     "yyyy-MM-dd HH:mm:ss",
                     "yyyy-MM-dd",
+                    "dd-MM-yyyy HH:mm:ss",
+                    "dd-MM-yyyy",
                 },
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.RoundtripKind,

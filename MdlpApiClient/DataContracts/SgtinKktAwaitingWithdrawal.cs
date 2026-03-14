@@ -58,7 +58,8 @@
         public decimal? Price { get; set; }
 
         /// <summary>
-        /// Сумма НДС (если сделка облагается НДС), в коп.        /// </summary>
+        /// Сумма НДС (если сделка облагается НДС), в коп.
+        /// </summary>
         [DataMember(Name = "vat_value", IsRequired = false)]
         public decimal? VatValue { get; set; }
 
@@ -69,7 +70,8 @@
         public string SoldPart { get; set; }
 
         /// <summary>
-        /// Сумма скидки, в коп.        /// </summary>
+        /// Сумма скидки, в коп.
+        /// </summary>
         [DataMember(Name = "discount", IsRequired = false)]
         public decimal? Discount { get; set; }
 
@@ -82,7 +84,7 @@
         /// <summary>
         /// Дата льготного рецепта
         /// </summary>
-        [DataMember(Name = "prescription_num", IsRequired = false)]
+        [DataMember(Name = "prescription_date", IsRequired = false)]
         public DateTime? PrescriptionDate { get; set; }
 
         /// <summary>
