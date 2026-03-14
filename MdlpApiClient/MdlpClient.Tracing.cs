@@ -208,5 +208,37 @@
                 });
             }
         }
+
+        private void Trace(CryptoProCpHttpResponse response, IRestRequest request)
+        {
+            var tracer = Tracer;
+            if (tracer != null)
+            {
+                var apiMethod = request.Parameters.FirstOrDefault(p =>
+                    p.Type == ParameterType.HttpHeader &&
+                    StringComparer.OrdinalIgnoreCase.Equals(p.Name, ApiMethodNameHeaderName));
+                if (apiMethod != null && apiMethod.Value != null && !string.IsNullOrWhiteSpace(apiMethod.Value.ToString()))
+                {
+                    tracer("// {0}", new[] { apiMethod.Value.ToString() });
+                }
+
+                var result = response.IsSuccessful ? "OK" : "ERROR";
+                var headers = FormatHeaders(response.Headers);
+                var body = FormatBody(response.Content, IsJson(response.ContentType));
+                var errorMessage = string.IsNullOrWhiteSpace(response.ErrorMessage) ? string.Empty :
+                    "error message: " + response.ErrorMessage + CR;
+
+                tracer("<- {0} {1} ({2}) {3}{4}{5}{6}{7}", new object[]
+                {
+                    result,
+                    (int)response.StatusCode,
+                    response.StatusCode.ToString(),
+                    response.ResponseUri, CR,
+                    errorMessage,
+                    headers,
+                    body,
+                });
+            }
+        }
     }
 }

@@ -1,5 +1,7 @@
 ﻿namespace MdlpApiClient.Tests
 {
+    using System.Diagnostics;
+    using System.IO;
     using System.Security.Cryptography.X509Certificates;
     using NUnit.Framework;
     using MdlpApiClient.Toolbox;
@@ -9,6 +11,7 @@
     using System;
     using System.Collections.Generic;
     using System.Threading.Tasks;
+    using System.Runtime.InteropServices;
 
     [TestFixture]
     public class UnitTestsBase : IDisposable
@@ -16,7 +19,23 @@
         private static string EnvOrDefault(string name, string fallback)
         {
             var value = Environment.GetEnvironmentVariable(name);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            var resolved = string.IsNullOrWhiteSpace(value) ? fallback : value;
+            return string.Equals(name, "MDLP_TEST_API_BASE_URL", StringComparison.OrdinalIgnoreCase)
+                ? NormalizeLegacySandboxBaseUrl(resolved)
+                : resolved;
+        }
+
+        private static string NormalizeLegacySandboxBaseUrl(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+
+            return value.Replace("https://api.sb.mdlp.crpt.ru/api/v1/", MdlpClient.SandboxApiHttps, StringComparison.OrdinalIgnoreCase)
+                .Replace("http://api.sb.mdlp.crpt.ru/api/v1/", MdlpClient.SandboxApiHttp, StringComparison.OrdinalIgnoreCase)
+                .Replace("https://api.sb.mdlp.crpt.ru/api/v1", MdlpClient.SandboxApiHttps.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)
+                .Replace("http://api.sb.mdlp.crpt.ru/api/v1", MdlpClient.SandboxApiHttp.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool EnvBoolOrDefault(string name, bool fallback)
@@ -137,6 +156,41 @@
             "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_06_11_GetRightsGroups",
             "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_07_02_GetUsers",
             "MdlpApiClient.Tests.ApiTestsChapter6.Chapter6_08_02_GetAccountSystems",
+            // Chapter 8: registries and member info (read-only/stable subset)
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_01_2_GetBranches",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_01_3_GetBranch",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_02_2_GetWarehouses",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_02_3_GetWarehouse",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_02_5_GetAvailableAddresses",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_03_1_GetSgtins",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_03_2_GetSgtins",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_03_2_GetSgtins_EmptyListIsNotAllowed",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_03_3_GetPublicSgtins",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_03_3_GetPublicSgtins_EmptyListIsNotAllowed",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_03_4_GetSgtin",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_03_5_GetSgtinsOnHold",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_03_6_GetSgtinsKktAwaitingWithdrawal",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_03_7_GetSgtinsDeviceAwaitingWithdrawal",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_04_1_GetSsccHierarchy_Found",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_04_1_GetSsccHierarchy_NotFound",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_04_2_GetSsccSgtins",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_04_2_GetSsccSgtinsNoImmediateSgtins",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_04_3_GetSsccFullHierarchy",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_05_1_GetCurrentMedProducts",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_05_2_GetCurrentMedProduct",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_05_3_GetPublicMedProducts",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_05_4_GetPublicMedProduct",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_06_2_GetForeignCounterparties",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_07_3_GetTrustedPartners",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_08_1_GetForeignPartners",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_08_1_GetLocalPartners",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_09_1_GetCurrentMember",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_09_3_GetCurrentBillingInfo",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_10_1_GetEmissionDevices",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_10_2_GetWithdrawalDevices",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_11_1_GetVirtualStorage",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_12_1_GetPausedCirculationDecisions",
+            "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_12_2_GetPausedCirculationSgtins",
         };
 
         private static readonly string[] LegacyIntegrationAllowPatterns = (LegacyIntegrationTestsAllowRaw ?? string.Empty)
@@ -227,6 +281,7 @@
         private static void ProbeSandboxAvailability()
         {
             var probeUrl = (TestApiBaseUrl ?? MdlpClient.SandboxApiHttps).TrimEnd('/') + "/documents/doc_size";
+            var primaryProbeFailureDetails = string.Empty;
 
             try
             {
@@ -236,6 +291,8 @@
                     sandboxIsAvailable = true;
                     sandboxAvailabilityDetails = "Probe response: HTTP " + (int)response.StatusCode;
                 }
+
+                return;
             }
             catch (HttpRequestException ex)
             {
@@ -246,18 +303,174 @@
                     return;
                 }
 
-                sandboxIsAvailable = false;
-                sandboxAvailabilityDetails = "Probe failed with HttpRequestException: " + ex.Message;
+                primaryProbeFailureDetails = "Probe failed with HttpRequestException: " + ex.Message;
             }
             catch (TaskCanceledException ex)
             {
-                sandboxIsAvailable = false;
-                sandboxAvailabilityDetails = "Probe failed with timeout: " + ex.Message;
+                primaryProbeFailureDetails = "Probe failed with timeout: " + ex.Message;
             }
             catch (Exception ex)
             {
-                sandboxIsAvailable = false;
-                sandboxAvailabilityDetails = "Probe failed with " + ex.GetType().Name + ": " + ex.Message;
+                primaryProbeFailureDetails = "Probe failed with " + ex.GetType().Name + ": " + ex.Message;
+            }
+
+            string cryptoProPreflightDetails;
+            if (TryProbeSandboxAvailabilityWithCryptoProSspi(probeUrl, out cryptoProPreflightDetails))
+            {
+                sandboxIsAvailable = true;
+                sandboxAvailabilityDetails = primaryProbeFailureDetails + " Fallback succeeded: " + cryptoProPreflightDetails;
+                return;
+            }
+
+            sandboxIsAvailable = false;
+            sandboxAvailabilityDetails = primaryProbeFailureDetails + " " + cryptoProPreflightDetails;
+        }
+
+        private static bool TryProbeSandboxAvailabilityWithCryptoProSspi(string probeUrl, out string details)
+        {
+            details = "CryptoPro SSP preflight skipped.";
+
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                details = "CryptoPro SSP preflight skipped: Windows only.";
+                return false;
+            }
+
+            if (!Uri.TryCreate(probeUrl, UriKind.Absolute, out var uri))
+            {
+                details = "CryptoPro SSP preflight skipped: invalid probe URL '" + probeUrl + "'.";
+                return false;
+            }
+
+            if (!string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            {
+                details = "CryptoPro SSP preflight skipped: endpoint is not HTTPS.";
+                return false;
+            }
+
+            var csptestPath = ResolveCsptestPath();
+            if (string.IsNullOrWhiteSpace(csptestPath))
+            {
+                details = "CryptoPro SSP preflight skipped: csptest.exe is not found.";
+                return false;
+            }
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = csptestPath,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                WorkingDirectory = Path.GetDirectoryName(csptestPath) ?? Environment.CurrentDirectory,
+            };
+
+            startInfo.ArgumentList.Add("-tlsc");
+            startInfo.ArgumentList.Add("-server");
+            startInfo.ArgumentList.Add(uri.Host);
+            startInfo.ArgumentList.Add("-port");
+            startInfo.ArgumentList.Add((uri.IsDefaultPort ? 443 : uri.Port).ToString());
+            startInfo.ArgumentList.Add("-file");
+            startInfo.ArgumentList.Add(string.IsNullOrWhiteSpace(uri.AbsolutePath) ? "/" : uri.AbsolutePath);
+            startInfo.ArgumentList.Add("-exchange");
+            startInfo.ArgumentList.Add("3");
+            startInfo.ArgumentList.Add("-cpsspi");
+            startInfo.ArgumentList.Add("-forcecheck");
+            startInfo.ArgumentList.Add("-nosave");
+
+            try
+            {
+                using (var process = Process.Start(startInfo))
+                {
+                    if (process == null)
+                    {
+                        details = "CryptoPro SSP preflight failed: csptest process did not start.";
+                        return false;
+                    }
+
+                    if (!process.WaitForExit(15000))
+                    {
+                        TryKillProcess(process);
+                        details = "CryptoPro SSP preflight failed: timeout after 15 seconds.";
+                        return false;
+                    }
+
+                    var stdout = process.StandardOutput.ReadToEnd().Trim();
+                    var stderr = process.StandardError.ReadToEnd().Trim();
+                    if (process.ExitCode == 0)
+                    {
+                        details = "CryptoPro SSP preflight OK via '" + csptestPath + "'.";
+                        return true;
+                    }
+
+                    details = "CryptoPro SSP preflight failed with exit code " + process.ExitCode + ". stderr: " + stderr + "; stdout: " + stdout;
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                details = "CryptoPro SSP preflight failed with " + ex.GetType().Name + ": " + ex.Message;
+                return false;
+            }
+        }
+
+        private static string ResolveCsptestPath()
+        {
+            var configuredPath = CryptoProCsptestPath;
+            if (!string.IsNullOrWhiteSpace(configuredPath) && File.Exists(configuredPath))
+            {
+                return configuredPath;
+            }
+
+            foreach (var candidate in new[]
+            {
+                Environment.GetEnvironmentVariable("MDLP_CRYPTOPRO_CSPTEST_PATH"),
+                @"C:\Program Files\Crypto Pro\CSP\csptest.exe",
+                @"C:\Program Files (x86)\Crypto Pro\CSP\csptest.exe",
+            })
+            {
+                if (!string.IsNullOrWhiteSpace(candidate) && File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            var pathValue = Environment.GetEnvironmentVariable("PATH");
+            if (string.IsNullOrWhiteSpace(pathValue))
+            {
+                return null;
+            }
+
+            foreach (var directory in pathValue.Split(Path.PathSeparator))
+            {
+                var normalizedDirectory = directory.Trim().Trim('"');
+                if (string.IsNullOrWhiteSpace(normalizedDirectory) || !Directory.Exists(normalizedDirectory))
+                {
+                    continue;
+                }
+
+                foreach (var executableName in new[] { "csptest.exe", "csptestf.exe", "csptest", "csptestf" })
+                {
+                    var candidate = Path.Combine(normalizedDirectory, executableName);
+                    if (File.Exists(candidate))
+                    {
+                        return candidate;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static void TryKillProcess(Process process)
+        {
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
             }
         }
 

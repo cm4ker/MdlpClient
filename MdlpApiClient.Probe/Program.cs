@@ -465,6 +465,6 @@ internal static class Program
         Console.WriteLine("Examples:");
         Console.WriteLine("  dotnet run --project MdlpApiClient.Probe -- --auth resident --operation doc-size --user-id 1DF0...");
         Console.WriteLine("  dotnet run --project MdlpApiClient.Probe -- --auth nonresident --operation doc-size --user-id starter_resident_1 --password password");
-        Console.WriteLine("  dotnet run --project MdlpApiClient.Probe -- --operation token --base-url https://sb.mdlp.crpt.ru --client-id <id> --client-secret <secret> --user-id <sandbox-user-id> --sign-thumbprint 1DF0... --csptest-path \"C:\\Program Files\\Crypto Pro\\CSP\\csptest.exe\"");
+        Console.WriteLine("  dotnet run --project MdlpApiClient.Probe -- --operation token --base-url https://sb.mdlp.crpt.ru/api/v1 --client-id <id> --client-secret <secret> --user-id <sandbox-user-id> --sign-thumbprint 1DF0... --csptest-path \"C:\\Program Files\\Crypto Pro\\CSP\\csptest.exe\"");
     }
 }
