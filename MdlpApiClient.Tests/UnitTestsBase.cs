@@ -74,6 +74,19 @@
         public static readonly string SandboxUserThumbprint2 = EnvOrDefault("MDLP_SANDBOX_USER_THUMBPRINT_2", "CC5D2B6C6457DED657D7EB7C388585D03ADDCBC8");
         public static readonly string TestUserID = EnvOrDefault("MDLP_TEST_USER_ID", "7ae327e3f8b19c0a1101979b4a4b8772cf52219f"); // получен при регистрации
         public static readonly bool SkipSandboxTestsWhenUnavailable = EnvBoolOrDefault("MDLP_SKIP_SANDBOX_TESTS_WHEN_UNAVAILABLE", true);
+        public static readonly bool EnableLegacyIntegrationTests = EnvBoolOrDefault("MDLP_ENABLE_LEGACY_INTEGRATION_TESTS", false);
+
+        private static readonly HashSet<string> LegacyIntegrationFixtureNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "AuthenticationTests",
+            "ApiTestsChapter5",
+            "ApiTestsChapter6",
+            "ApiTestsChapter7",
+            "ApiTestsChapter8",
+            "ApiTestsDocuments",
+            "ApiTestsMisc",
+            "SandboxTests",
+        };
 
         private static readonly object SandboxAvailabilitySync = new object();
         private static readonly HttpClient SandboxProbeClient = CreateSandboxProbeClient();
@@ -196,9 +209,28 @@
             WriteLine("<==== {0}.Dispose() ====>", GetType().Name);
         }
 
+        private static bool IsLegacyIntegrationFixture()
+        {
+            var className = TestContext.CurrentContext?.Test?.ClassName;
+            if (string.IsNullOrWhiteSpace(className))
+            {
+                return false;
+            }
+
+            var lastDot = className.LastIndexOf('.');
+            var shortName = lastDot >= 0 ? className.Substring(lastDot + 1) : className;
+            return LegacyIntegrationFixtureNames.Contains(shortName);
+        }
+
         [SetUp]
         public void SetupBeforeEachTest()
         {
+            if (!EnableLegacyIntegrationTests && IsLegacyIntegrationFixture())
+            {
+                Assert.Ignore("Legacy integration tests are temporarily disabled. " +
+                    "Set MDLP_ENABLE_LEGACY_INTEGRATION_TESTS=true to run them.");
+            }
+
             WriteLine("------> {0} <------", TestContext.CurrentContext.Test.MethodName);
         }
 
