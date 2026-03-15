@@ -5,6 +5,7 @@
     using System.Linq;
     using System.Net;
     using MdlpApiClient.DataContracts;
+    using MdlpApiClient.Xsd;
     using NUnit.Framework;
 
     [TestFixture]
@@ -552,7 +553,8 @@
                 return _sampleSsccs;
             }
 
-            _sampleSsccs = KnownSsccCandidates
+            _sampleSsccs = GetDocumentBackedSsccCandidates()
+                .Concat(KnownSsccCandidates)
                 .Concat(GetTestCodes(s => s.Sscc, maxWindows: 12, daysPerWindow: 365, pageSize: 250))
                 .Where(s => !string.IsNullOrWhiteSpace(s))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -561,10 +563,157 @@
             return _sampleSsccs;
         }
 
+        private IEnumerable<string> GetDocumentBackedSsccCandidates()
+        {
+            var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var candidates = new List<string>();
+
+            CollectSsccCandidatesFromDocuments(candidates, yielded, Client, income: true, docType: 607);
+            CollectSsccCandidatesFromDocuments(candidates, yielded, Client, income: false, docType: 415);
+            CollectSsccCandidatesFromDocuments(candidates, yielded, Client, income: false, docType: 915);
+
+            try
+            {
+                using var secondClient = CreateSecondSandboxClient();
+                CollectSsccCandidatesFromDocuments(candidates, yielded, secondClient, income: true, docType: 601);
+            }
+            catch (MdlpException ex) when (ex.StatusCode == HttpStatusCode.Forbidden || ex.StatusCode == HttpStatusCode.NotFound)
+            {
+            }
+            catch (System.Security.SecurityException)
+            {
+            }
+
+            return candidates;
+        }
+
+        private void CollectSsccCandidatesFromDocuments(List<string> candidates, HashSet<string> yielded, MdlpClient client, bool income, int docType)
+        {
+            try
+            {
+                var filter = new DocFilter
+                {
+                    DocType = docType,
+                    ProcessedDateFrom = DateTime.Now.AddYears(-10),
+                    ProcessedDateTo = DateTime.Now,
+                };
+
+                IEnumerable<DocumentMetadata> documents;
+                if (income)
+                {
+                    documents = client.GetIncomeDocuments(filter, 0, 20).Documents;
+                }
+                else
+                {
+                    documents = client.GetOutcomeDocuments(filter, 0, 20).Documents;
+                }
+
+                if (documents == null)
+                {
+                    return;
+                }
+
+                foreach (var metadata in documents)
+                {
+                    if (string.IsNullOrWhiteSpace(metadata?.DocumentID))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        var document = client.GetDocument(metadata.DocumentID);
+                        AddSsccsFromDocument(candidates, yielded, document);
+                    }
+                    catch (MdlpException ex) when (ex.StatusCode == HttpStatusCode.NotFound || ex.StatusCode == HttpStatusCode.Forbidden)
+                    {
+                    }
+                }
+            }
+            catch (MdlpException ex) when (ex.StatusCode == HttpStatusCode.NotFound || ex.StatusCode == HttpStatusCode.Forbidden || ex.StatusCode == HttpStatusCode.BadRequest)
+            {
+            }
+        }
+
+        private static void AddSsccsFromDocument(List<string> candidates, HashSet<string> yielded, Documents document)
+        {
+            if (document == null)
+            {
+                return;
+            }
+
+            if (document.Multi_Pack?.By_Sgtin != null)
+            {
+                foreach (var pack in document.Multi_Pack.By_Sgtin)
+                {
+                    AddSsccCandidate(candidates, yielded, pack?.Sscc);
+                }
+            }
+
+            if (document.Move_Order?.Order_Details != null)
+            {
+                foreach (var item in document.Move_Order.Order_Details)
+                {
+                    AddSsccCandidate(candidates, yielded, item?.Sscc_Detail?.Sscc);
+                }
+            }
+
+            if (document.Move_Order_Notification?.Order_Details != null)
+            {
+                foreach (var item in document.Move_Order_Notification.Order_Details)
+                {
+                    AddSsccCandidate(candidates, yielded, item?.Sscc_Detail?.Sscc);
+                }
+            }
+
+            if (document.Accept_Notification?.Order_Details?.Sscc != null)
+            {
+                foreach (var sscc in document.Accept_Notification.Order_Details.Sscc)
+                {
+                    AddSsccCandidate(candidates, yielded, sscc);
+                }
+            }
+
+            if (document.Accept?.Order_Details?.Sscc != null)
+            {
+                foreach (var sscc in document.Accept.Order_Details.Sscc)
+                {
+                    AddSsccCandidate(candidates, yielded, sscc);
+                }
+            }
+
+            AddSsccCandidate(candidates, yielded, document.Query_Hierarchy_Info?.Sscc);
+        }
+
+        private static void AddSsccCandidate(List<string> candidates, HashSet<string> yielded, string sscc)
+        {
+            if (string.IsNullOrWhiteSpace(sscc) || !yielded.Add(sscc))
+            {
+                return;
+            }
+
+            candidates.Add(sscc);
+        }
+
         private static bool IsSandboxStaticResourceNotFound(MdlpException ex)
         {
             return ex.StatusCode == HttpStatusCode.NotFound &&
                 ex.Message.IndexOf("No static resource", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private MdlpClient CreateSecondSandboxClient()
+        {
+            return new MdlpClient(new ResidentCredentials
+            {
+                ClientID = ClientID2,
+                ClientSecret = ClientSecret2,
+                UserID = SandboxUserThumbprint2,
+            },
+            TestApiBaseUrl)
+            {
+                ApplicationName = "ApiTestsChapter8-Receiver",
+                Tracer = WriteLine,
+            };
         }
 
         private string GetSampleBranchId()
