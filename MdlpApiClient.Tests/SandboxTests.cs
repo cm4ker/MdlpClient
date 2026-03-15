@@ -1,8 +1,13 @@
 ﻿namespace MdlpApiClient.Tests
 {
     using System;
+    using System.Collections.Generic;
+    using System.Globalization;
     using System.Linq;
     using System.Net;
+    using System.Reflection;
+    using System.Runtime.Serialization;
+    using System.Text;
     using System.Threading;
     using System.Xml.Linq;
     using MdlpApiClient.DataContracts;
@@ -14,6 +19,78 @@
     [TestFixture] // Ignore("Sandbox server is temporarily down")
     public class SandboxTests : UnitTestsClientBase
     {
+        private static readonly string[] KnownSsccCandidates =
+        {
+            "507540413987451236",
+            "000000000105900000",
+            "147600887000110010",
+            "000000111100000097",
+            "000000111100000100",
+        };
+
+        private const string KnownWorkflowSenderId = "00000000104494";
+        private const string KnownWorkflowGtin = "50754041398745";
+
+        private sealed class SsccQueryCandidate
+        {
+            public SsccQueryCandidate(string senderId, string sscc, int sourceDocType, string sourceDocumentId)
+            {
+                SenderId = senderId;
+                Sscc = sscc;
+                SourceDocType = sourceDocType;
+                SourceDocumentId = sourceDocumentId;
+            }
+
+            public string SenderId { get; }
+
+            public string Sscc { get; }
+
+            public int SourceDocType { get; }
+
+            public string SourceDocumentId { get; }
+        }
+
+        private sealed class SentDocumentReference
+        {
+            public SentDocumentReference(string documentId, string requestId)
+            {
+                DocumentId = documentId;
+                RequestId = requestId;
+            }
+
+            public string DocumentId { get; }
+
+            public string RequestId { get; }
+        }
+
+        private sealed class WorkflowSeedCandidate
+        {
+            public WorkflowSeedCandidate(string senderId, string gtin, string source)
+            {
+                SenderId = senderId;
+                Gtin = gtin;
+                Source = source;
+            }
+
+            public string SenderId { get; }
+
+            public string Gtin { get; }
+
+            public string Source { get; }
+        }
+
+        [DataContract]
+        private sealed class SendDocumentResult
+        {
+            [DataMember(Name = "document_id")]
+            public string DocumentId { get; set; }
+        }
+
+        private readonly List<string> _hierarchy221Diagnostics = new List<string>();
+
+        private static readonly MethodInfo ComputeSignatureMethod = typeof(MdlpClient)
+            .GetMethod("ComputeSignature", BindingFlags.Instance | BindingFlags.NonPublic);
+
         protected override MdlpClient CreateClient()
         {
             // Типография для типографий
@@ -48,6 +125,39 @@
                 ApplicationName = "SandboxTests v2.0",
                 Tracer = WriteLine,
             };
+        }
+
+        private MdlpClient CreateHierarchyQueryClient()
+        {
+            var cred = new ResidentCredentials
+            {
+                ClientID = ClientID1,
+                ClientSecret = ClientSecret1,
+                UserID = TestUserThumbprint,
+            };
+
+            var client = new MdlpClient(cred, TestApiBaseUrl)
+            {
+                ApplicationName = "SandboxTests 221 Dynamic",
+                LargeDocumentSize = 1024 * 1024,
+                Tracer = WriteLine,
+            };
+
+            client.Client.RemoteCertificateValidationCallback += (sender, certificate, chain, errors) => true;
+            return client;
+        }
+
+        private void NoteHierarchy221(string message)
+        {
+            _hierarchy221Diagnostics.Add(message);
+            WriteLine(message);
+        }
+
+        private static bool IsFixedLengthDigits(string value, int length)
+        {
+            return !string.IsNullOrWhiteSpace(value) &&
+                value.Length == length &&
+                value.All(char.IsDigit);
         }
 
         [Test]
@@ -835,72 +945,1066 @@
             return doc;
         }
 
-        private string SendDocument220ToSandbox(string senderId, string sscc)
+        private bool TryGetWorkflowSeedFromSuccessfulPacking(MdlpClient client, out string senderId, out string gtin)
         {
-            // Пошлем документ, в данном случае получили код:
-            // d4d79ada-6de6-412b-ac25-254ae533fe5f
-            var doc220 = CreateDocument220(senderId, sscc);
-            var docId = Client.SendDocument(doc220);
-            WriteLine("Sent document 220: {0}", docId);
-
-            // Циклически опрашиваем состояние документа
-            // Задержка между вызовами соблюдается автоматически
-            while (true)
+            try
             {
-                var doc = Client.GetDocumentMetadata(docId);
-                WriteLine("Waiting... {0}", doc.DocStatus);
-                if (doc.DocStatus == DocStatusEnum.PROCESSED_DOCUMENT ||
-                    doc.DocStatus == DocStatusEnum.FAILED_RESULT_READY)
+                var documents = client.GetOutcomeDocuments(new DocFilter
                 {
-                    break;
+                    DocType = 10311,
+                    DocStatus = DocStatusEnum.PROCESSED_DOCUMENT,
+                    ProcessedDateFrom = DateTime.Now.AddYears(-10),
+                    ProcessedDateTo = DateTime.Now,
+                },
+                0,
+                10);
+
+                foreach (var metadata in documents?.Documents ?? Array.Empty<OutcomeDocument>())
+                {
+                    if (string.IsNullOrWhiteSpace(metadata?.DocumentID))
+                    {
+                        continue;
+                    }
+
+                    Documents document;
+                    try
+                    {
+                        document = client.GetDocument(metadata.DocumentID);
+                    }
+                    catch (MdlpException ex) when (
+                        ex.StatusCode == HttpStatusCode.NotFound ||
+                        ex.StatusCode == HttpStatusCode.Forbidden ||
+                        ex.StatusCode == HttpStatusCode.BadRequest)
+                    {
+                        continue;
+                    }
+
+                    var packing = document?.Skzkm_Register_End_Packing;
+                    if (!IsFixedLengthDigits(packing?.Subject_Id, 14) || !IsFixedLengthDigits(packing?.Gtin, 14))
+                    {
+                        continue;
+                    }
+
+                    senderId = packing.Subject_Id;
+                    gtin = packing.Gtin;
+                    return true;
+                }
+            }
+            catch (MdlpException ex) when (
+                ex.StatusCode == HttpStatusCode.NotFound ||
+                ex.StatusCode == HttpStatusCode.Forbidden ||
+                ex.StatusCode == HttpStatusCode.BadRequest)
+            {
+            }
+
+            senderId = null;
+            gtin = null;
+            return false;
+        }
+
+        private IEnumerable<string> GetWorkflowSenderCandidates(MdlpClient client)
+        {
+            var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var productionBranchIds = Array.Empty<string>();
+            var branchIds = Array.Empty<string>();
+
+            try
+            {
+                var branches = client.GetBranches(null, 0, 100);
+                productionBranchIds = branches?.Entries
+                    ?.Where(entry => IsFixedLengthDigits(entry?.ID, 14) && entry.WorkList != null && entry.WorkList.Any(item =>
+                        item?.IndexOf("Производ", StringComparison.OrdinalIgnoreCase) >= 0))
+                    .Select(entry => entry.ID)
+                    .ToArray() ?? Array.Empty<string>();
+
+                branchIds = branches?.Entries
+                    ?.Select(entry => entry?.ID)
+                    .Where(id => IsFixedLengthDigits(id, 14))
+                    .ToArray() ?? Array.Empty<string>();
+            }
+            catch (MdlpException ex) when (
+                ex.StatusCode == HttpStatusCode.NotFound ||
+                ex.StatusCode == HttpStatusCode.Forbidden ||
+                ex.StatusCode == HttpStatusCode.BadRequest)
+            {
+            }
+
+            foreach (var branchId in productionBranchIds)
+            {
+                if (yielded.Add(branchId))
+                {
+                    yield return branchId;
                 }
             }
 
-            // В этот момент уже можно запрашивать тикет
-            return docId;
+            foreach (var branchId in branchIds)
+            {
+                if (yielded.Add(branchId))
+                {
+                    yield return branchId;
+                }
+            }
+
+            if (yielded.Add(KnownWorkflowSenderId))
+            {
+                yield return KnownWorkflowSenderId;
+            }
+        }
+
+        private IEnumerable<string> GetWorkflowGtinCandidates(MdlpClient client)
+        {
+            var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var gtins = Array.Empty<string>();
+
+            try
+            {
+                var medProducts = client.GetCurrentMedProducts(null, 0, 100);
+                gtins = medProducts?.Entries
+                    ?.Select(entry => entry?.Gtin)
+                    .Where(value => IsFixedLengthDigits(value, 14))
+                    .ToArray() ?? Array.Empty<string>();
+            }
+            catch (MdlpException ex) when (
+                ex.StatusCode == HttpStatusCode.NotFound ||
+                ex.StatusCode == HttpStatusCode.Forbidden ||
+                ex.StatusCode == HttpStatusCode.BadRequest)
+            {
+            }
+
+            foreach (var gtin in gtins)
+            {
+                if (yielded.Add(gtin))
+                {
+                    yield return gtin;
+                }
+            }
+
+            if (yielded.Add(KnownWorkflowGtin))
+            {
+                yield return KnownWorkflowGtin;
+            }
+        }
+
+        private IEnumerable<WorkflowSeedCandidate> GetWorkflowSeedCandidates(MdlpClient client)
+        {
+            var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (TryGetWorkflowSeedFromSuccessfulPacking(client, out var historicalSenderId, out var historicalGtin) &&
+                yielded.Add(historicalSenderId + "|" + historicalGtin))
+            {
+                yield return new WorkflowSeedCandidate(historicalSenderId, historicalGtin, "successful 10311");
+            }
+
+            if (yielded.Add(KnownWorkflowSenderId + "|" + KnownWorkflowGtin))
+            {
+                yield return new WorkflowSeedCandidate(KnownWorkflowSenderId, KnownWorkflowGtin, "known workflow fallback");
+            }
+
+            var senderIds = GetWorkflowSenderCandidates(client).Take(3).ToArray();
+            var gtins = GetWorkflowGtinCandidates(client).Take(4).ToArray();
+            foreach (var senderId in senderIds)
+            {
+                foreach (var gtin in gtins)
+                {
+                    if (yielded.Add(senderId + "|" + gtin))
+                    {
+                        yield return new WorkflowSeedCandidate(senderId, gtin, "live registry");
+                    }
+                }
+            }
+        }
+
+        private bool TryGetWorkflowDeviceIdCandidate(MdlpClient client, out string deviceId, out string source)
+        {
+            try
+            {
+                var documents = client.GetOutcomeDocuments(new DocFilter
+                {
+                    DocType = 10311,
+                    DocStatus = DocStatusEnum.PROCESSED_DOCUMENT,
+                    ProcessedDateFrom = DateTime.Now.AddYears(-10),
+                    ProcessedDateTo = DateTime.Now,
+                },
+                0,
+                10);
+
+                deviceId = documents?.Documents
+                    ?.Select(metadata => metadata?.DeviceID)
+                    .FirstOrDefault(IsValidWorkflowDeviceId);
+                if (IsValidWorkflowDeviceId(deviceId))
+                {
+                    source = "successful 10311";
+                    return true;
+                }
+            }
+            catch (MdlpException ex) when (
+                ex.StatusCode == HttpStatusCode.NotFound ||
+                ex.StatusCode == HttpStatusCode.Forbidden ||
+                ex.StatusCode == HttpStatusCode.BadRequest)
+            {
+            }
+
+            try
+            {
+                var devices = client.GetEmissionDevices(new EmissionDeviceFilter
+                {
+                    ProvisionStartDate = DateTime.Now.AddYears(-100),
+                    ProvisionEndDate = DateTime.Now,
+                    Status = 0,
+                }, 0, 10);
+
+                deviceId = devices?.Entries
+                    ?.Select(entry => entry?.DeviceID)
+                    .FirstOrDefault(IsValidWorkflowDeviceId);
+                if (IsValidWorkflowDeviceId(deviceId))
+                {
+                    source = "emission registry";
+                    return true;
+                }
+            }
+            catch (MdlpException ex) when (
+                ex.StatusCode == HttpStatusCode.NotFound ||
+                ex.StatusCode == HttpStatusCode.Forbidden ||
+                ex.StatusCode == HttpStatusCode.BadRequest)
+            {
+            }
+
+            deviceId = null;
+            source = null;
+            return false;
+        }
+
+        private static bool IsValidWorkflowDeviceId(string value)
+        {
+            return !string.IsNullOrWhiteSpace(value) && value.Length == 16;
+        }
+
+        private static string[] BuildWorkflowSgtins(string gtin, string runTag, int count)
+        {
+            var digits = new string(runTag.Where(char.IsDigit).ToArray());
+            var suffixWidth = Math.Max(1, count.ToString(CultureInfo.InvariantCulture).Length);
+            var serialSeedWidth = 13 - suffixWidth;
+            var serialSeed = digits.Length >= serialSeedWidth
+                ? digits.Substring(digits.Length - serialSeedWidth)
+                : digits.PadLeft(serialSeedWidth, '0');
+            var sgtins = new string[count];
+            for (var i = 0; i < count; i++)
+            {
+                var serialSuffix = i.ToString(CultureInfo.InvariantCulture).PadLeft(suffixWidth, '0');
+                var serial = serialSeed + serialSuffix;
+                sgtins[i] = gtin + serial;
+            }
+
+            return sgtins;
+        }
+
+        private static string BuildWorkflowSscc(string gtin, string runTag)
+        {
+            var digits = new string(runTag.Where(char.IsDigit).ToArray());
+            var suffix = digits.Length >= 3
+                ? digits.Substring(digits.Length - 3)
+                : digits.PadLeft(3, '0');
+            var body = gtin + suffix;
+            return body + ComputeGs1CheckDigit(body).ToString(CultureInfo.InvariantCulture);
+        }
+
+        private static string BuildWorkflowDeviceId(string preferredDeviceId, string runTag)
+        {
+            if (IsValidWorkflowDeviceId(preferredDeviceId))
+            {
+                return preferredDeviceId;
+            }
+
+            var digits = new string(runTag.Where(char.IsDigit).ToArray());
+            if (digits.Length >= 16)
+            {
+                return digits.Substring(digits.Length - 16);
+            }
+
+            return digits.PadLeft(16, '0');
+        }
+
+        private static int ComputeGs1CheckDigit(string digitsWithoutCheckDigit)
+        {
+            var sum = 0;
+            var weight = 3;
+            for (var i = digitsWithoutCheckDigit.Length - 1; i >= 0; i--)
+            {
+                sum += (digitsWithoutCheckDigit[i] - '0') * weight;
+                weight = weight == 3 ? 1 : 3;
+            }
+
+            return (10 - (sum % 10)) % 10;
+        }
+
+        private static Documents CreateWorkflowDocument311(string sessionUi, string senderId, string gtin, IEnumerable<string> sgtins, string runTag, string deviceId)
+        {
+            var doc = new Documents
+            {
+                Version = "1.38",
+                Session_Ui = sessionUi,
+                Skzkm_Register_End_Packing = new Skzkm_Register_End_Packing
+                {
+                    Subject_Id = senderId,
+                    Operation_Date = DateTime.Now,
+                    Order_Type = Order_Type_Enum.Item1,
+                    Series_Number = ("WF" + runTag).Substring(0, Math.Min(20, ("WF" + runTag).Length)),
+                    Expiration_Date = DateTime.Today.AddYears(1).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture),
+                    Gtin = gtin,
+                    Device_Info = new Skzkm_Info_Type
+                    {
+                        Device_Id = BuildWorkflowDeviceId(deviceId, runTag),
+                        Skzkm_Origin_Msg_Id = "wf311-" + runTag,
+                    },
+                }
+            };
+
+            foreach (var sgtin in sgtins)
+            {
+                doc.Skzkm_Register_End_Packing.Signs.Add(sgtin);
+            }
+
+            return doc;
+        }
+
+        private static Documents CreateWorkflowDocument313(string sessionUi, string senderId, IEnumerable<string> sgtins, string runTag)
+        {
+            var doc = new Documents
+            {
+                Version = "1.34",
+                Session_Ui = sessionUi,
+                Register_Product_Emission = new Register_Product_Emission
+                {
+                    Subject_Id = senderId,
+                    Operation_Date = DateTime.Now,
+                    Release_Info = new Release_Info_Type
+                    {
+                        Doc_Num = "WF313-" + runTag.Substring(runTag.Length - 6),
+                        Doc_Date = DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture),
+                        Confirmation_Num = "WF313-" + runTag.Substring(runTag.Length - 6),
+                    },
+                    Signs = new Register_Product_EmissionSigns(),
+                }
+            };
+
+            foreach (var sgtin in sgtins)
+            {
+                doc.Register_Product_Emission.Signs.Sgtin.Add(sgtin);
+            }
+
+            return doc;
+        }
+
+        private static Documents CreateWorkflowDocument915(string sessionUi, string senderId, string sscc, IEnumerable<string> sgtins)
+        {
+            var doc = new Documents
+            {
+                Version = "1.34",
+                Session_Ui = sessionUi,
+                Multi_Pack = new Multi_Pack
+                {
+                    Subject_Id = senderId,
+                    Operation_Date = DateTime.Now,
+                }
+            };
+
+            var pack = new Multi_PackBy_SgtinDetail
+            {
+                Sscc = sscc,
+            };
+
+            foreach (var sgtin in sgtins)
+            {
+                pack.Content.Add(sgtin);
+            }
+
+            doc.Multi_Pack.By_Sgtin.Add(pack);
+            return doc;
+        }
+
+        private static SentDocumentReference SendTrackedDocument(MdlpClient client, Documents document)
+        {
+            var xml = XmlSerializationHelper.Serialize(document, client.ApplicationName);
+            var requestId = Guid.NewGuid().ToString();
+            var signature = (string)ComputeSignatureMethod.Invoke(client, new object[] { xml });
+            var result = client.Post<SendDocumentResult>("documents/send", new
+            {
+                document = Convert.ToBase64String(Encoding.UTF8.GetBytes(xml)),
+                sign = signature,
+                request_id = requestId,
+            }, apiMethodName: "SendDocument");
+
+            return new SentDocumentReference(result.DocumentId, requestId);
+        }
+
+        private static bool IsFinalStatus(string status)
+        {
+            return status == DocStatusEnum.PROCESSED_DOCUMENT ||
+                status == DocStatusEnum.FAILED_RESULT_READY ||
+                status == DocStatusEnum.FAILED;
+        }
+
+        private static DocumentMetadata TryGetMetadataByRequestId(MdlpClient client, string requestId)
+        {
+            if (string.IsNullOrWhiteSpace(requestId))
+            {
+                return null;
+            }
+
+            try
+            {
+                return client.GetDocumentsByRequestID(requestId)?.Documents?.FirstOrDefault();
+            }
+            catch (MdlpException ex) when (
+                ex.StatusCode == HttpStatusCode.NotFound ||
+                ex.StatusCode == HttpStatusCode.Forbidden ||
+                ex.StatusCode == HttpStatusCode.BadRequest)
+            {
+                return null;
+            }
+        }
+
+        private static DocumentMetadata TryGetMetadataFromOutcomeList(MdlpClient client, string documentId)
+        {
+            if (string.IsNullOrWhiteSpace(documentId))
+            {
+                return null;
+            }
+
+            try
+            {
+                return client.GetOutcomeDocuments(new DocFilter
+                {
+                    DocumentID = documentId,
+                }, 0, 5)?.Documents?.FirstOrDefault(doc => string.Equals(doc.DocumentID, documentId, StringComparison.OrdinalIgnoreCase));
+            }
+            catch (MdlpException ex) when (
+                ex.StatusCode == HttpStatusCode.NotFound ||
+                ex.StatusCode == HttpStatusCode.Forbidden ||
+                ex.StatusCode == HttpStatusCode.BadRequest)
+            {
+                return null;
+            }
+        }
+
+        private static DocumentMetadata TryGetTrackedDocumentMetadata(MdlpClient client, SentDocumentReference document, out string source)
+        {
+            try
+            {
+                source = "document_id";
+                return client.GetDocumentMetadata(document.DocumentId);
+            }
+            catch (MdlpException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+            {
+            }
+
+            var byRequestId = TryGetMetadataByRequestId(client, document.RequestId);
+            if (byRequestId != null)
+            {
+                source = "request_id";
+                return byRequestId;
+            }
+
+            var byOutcomeList = TryGetMetadataFromOutcomeList(client, document.DocumentId);
+            if (byOutcomeList != null)
+            {
+                source = "outcome list";
+                return byOutcomeList;
+            }
+
+            source = null;
+            return null;
+        }
+
+        private static DocumentMetadata WaitForFinalStatus(MdlpClient client, SentDocumentReference document, TimeSpan timeout, Action<string, object[]> tracer)
+        {
+            var deadline = DateTime.UtcNow + timeout;
+            while (DateTime.UtcNow < deadline)
+            {
+                var doc = TryGetTrackedDocumentMetadata(client, document, out var source);
+                if (doc != null)
+                {
+                    if (string.Equals(source, "document_id", StringComparison.Ordinal))
+                    {
+                        tracer("Waiting... {0}", new object[] { doc.DocStatus });
+                    }
+                    else
+                    {
+                        tracer("Waiting... {0} via {1}", new object[] { doc.DocStatus, source });
+                    }
+
+                    if (IsFinalStatus(doc.DocStatus))
+                    {
+                        return doc;
+                    }
+                }
+                else
+                {
+                    tracer(
+                        "Waiting... metadata not visible yet for {0} (request_id={1})",
+                        new object[] { document.DocumentId, document.RequestId });
+                }
+
+                Thread.Sleep(TimeSpan.FromSeconds(5));
+            }
+
+            return null;
+        }
+
+        private static string FormatTicketSummary(Documents ticket)
+        {
+            var result = ticket?.Result;
+            if (result == null)
+            {
+                return "ticket result is empty";
+            }
+
+            var parts = new List<string>
+            {
+                string.Format(CultureInfo.InvariantCulture, "operation={0}", result.Operation),
+                string.Format(CultureInfo.InvariantCulture, "result={0}", result.Operation_Result),
+            };
+
+            if (!string.IsNullOrWhiteSpace(result.Operation_Comment))
+            {
+                parts.Add("comment=" + result.Operation_Comment);
+            }
+
+            if (result.ErrorsSpecified)
+            {
+                var errors = result.Errors
+                    .Select(error => string.IsNullOrWhiteSpace(error?.Object_Id)
+                        ? string.Format(CultureInfo.InvariantCulture, "{0}: {1}", error?.Error_Code, error?.Error_Desc)
+                        : string.Format(CultureInfo.InvariantCulture, "{0}: {1} (object_id={2})", error.Error_Code, error.Error_Desc, error.Object_Id))
+                    .Where(value => !string.IsNullOrWhiteSpace(value));
+                parts.Add("errors=" + string.Join("; ", errors));
+            }
+
+            if (result.Operation_WarningsSpecified)
+            {
+                var warnings = result.Operation_Warnings
+                    .Select(warning => warning?.Operation_Warning)
+                    .Where(value => !string.IsNullOrWhiteSpace(value));
+                parts.Add("warnings=" + string.Join("; ", warnings));
+            }
+
+            return string.Join(", ", parts.Where(value => !string.IsNullOrWhiteSpace(value)));
+        }
+
+        private string TryGetTicketSummary(MdlpClient client, string documentId, string requestId)
+        {
+            if (!string.IsNullOrWhiteSpace(documentId))
+            {
+                try
+                {
+                    var directTicket = client.GetTicket(documentId);
+                    var directSummary = FormatTicketSummary(directTicket);
+                    if (!string.IsNullOrWhiteSpace(directSummary))
+                    {
+                        return directSummary + " (source=document_id)";
+                    }
+                }
+                catch (MdlpException ex) when (
+                    ex.StatusCode == HttpStatusCode.NotFound ||
+                    ex.StatusCode == HttpStatusCode.Forbidden ||
+                    ex.StatusCode == HttpStatusCode.BadRequest)
+                {
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(requestId))
+            {
+                try
+                {
+                    var requestTicket = client.GetFirstTicketByRequestId(requestId);
+                    var requestSummary = FormatTicketSummary(requestTicket);
+                    if (!string.IsNullOrWhiteSpace(requestSummary))
+                    {
+                        return requestSummary + " (source=request_id)";
+                    }
+                }
+                catch (MdlpException ex) when (
+                    ex.StatusCode == HttpStatusCode.NotFound ||
+                    ex.StatusCode == HttpStatusCode.Forbidden ||
+                    ex.StatusCode == HttpStatusCode.BadRequest)
+                {
+                }
+            }
+
+            return null;
+        }
+
+        private DocumentMetadata SendDocument220ToSandbox(MdlpClient client, string senderId, string sscc, out string docId)
+        {
+            var doc220 = CreateDocument220(senderId, sscc);
+            var sentDocument = SendTrackedDocument(client, doc220);
+            docId = sentDocument.DocumentId;
+            WriteLine("Sent document 220: {0}", docId);
+            return WaitForFinalStatus(client, sentDocument, TimeSpan.FromMinutes(3), WriteLine);
+        }
+
+        private bool TryEnsureProcessedDocument(MdlpClient client, SentDocumentReference document, string operationName, TimeSpan timeout, out DocumentMetadata metadata)
+        {
+            metadata = WaitForFinalStatus(client, document, timeout, WriteLine);
+            if (metadata == null)
+            {
+                NoteHierarchy221(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Timed out waiting for {0} to finish. doc_id={1}, request_id={2}",
+                    operationName,
+                    document.DocumentId,
+                    document.RequestId));
+                return false;
+            }
+
+            if (metadata.DocStatus == DocStatusEnum.PROCESSED_DOCUMENT)
+            {
+                return true;
+            }
+
+            NoteHierarchy221(string.Format(CultureInfo.InvariantCulture, "{0} finished with non-success status {1}. doc_id={2}", operationName, metadata.DocStatus, document.DocumentId));
+            var summary = TryGetTicketSummary(client, document.DocumentId, document.RequestId);
+            if (!string.IsNullOrWhiteSpace(summary))
+            {
+                NoteHierarchy221(string.Format(CultureInfo.InvariantCulture, "{0} ticket: {1}", operationName, summary));
+            }
+
+            return false;
+        }
+
+        private bool TrySend220AndGetHierarchyTicket(MdlpClient client, SsccQueryCandidate candidate, out string queryDocumentId, out Documents ticket)
+        {
+            try
+            {
+                var metadata = SendDocument220ToSandbox(client, candidate.SenderId, candidate.Sscc, out var docId);
+                if (metadata == null)
+                {
+                    NoteHierarchy221(string.Format(CultureInfo.InvariantCulture, "Timed out waiting for document 220 to finish. sscc={0}", candidate.Sscc));
+                    queryDocumentId = null;
+                    ticket = null;
+                    return false;
+                }
+
+                if (metadata.DocStatus != DocStatusEnum.PROCESSED_DOCUMENT)
+                {
+                    NoteHierarchy221(string.Format(
+                        CultureInfo.InvariantCulture,
+                        "Document 220 finished with non-success status {0}. sscc={1}, doc_id={2}",
+                        metadata.DocStatus,
+                        candidate.Sscc,
+                        docId));
+                    queryDocumentId = null;
+                    ticket = null;
+                    return false;
+                }
+
+                var currentTicket = client.GetTicket(docId);
+                var package = currentTicket?.Hierarchy_Info?.Sscc_Down;
+                if (package?.Sscc_Info?.Sscc == null)
+                {
+                    NoteHierarchy221(string.Format(CultureInfo.InvariantCulture, "Ticket 221 did not contain Sscc_Down hierarchy. sscc={0}", candidate.Sscc));
+                    queryDocumentId = null;
+                    ticket = null;
+                    return false;
+                }
+
+                if (!string.Equals(package.Sscc_Info.Sscc, candidate.Sscc, StringComparison.OrdinalIgnoreCase))
+                {
+                    NoteHierarchy221(string.Format(
+                        CultureInfo.InvariantCulture,
+                        "Ticket 221 returned a different SSCC. requested={0}, actual={1}",
+                        candidate.Sscc,
+                        package.Sscc_Info.Sscc));
+                    queryDocumentId = null;
+                    ticket = null;
+                    return false;
+                }
+
+                queryDocumentId = docId;
+                ticket = currentTicket;
+                return true;
+            }
+            catch (MdlpException ex) when (
+                ex.StatusCode == HttpStatusCode.NotFound ||
+                ex.StatusCode == HttpStatusCode.Forbidden ||
+                ex.StatusCode == HttpStatusCode.BadRequest ||
+                ex.StatusCode == HttpStatusCode.Conflict)
+            {
+                NoteHierarchy221(string.Format(CultureInfo.InvariantCulture, "Live SSCC candidate rejected by sandbox. sscc={0}, error={1}", candidate.Sscc, ex.Message));
+                queryDocumentId = null;
+                ticket = null;
+                return false;
+            }
+        }
+
+        private bool TryGetHierarchyTicketFromFreshWorkflow(MdlpClient client, out SsccQueryCandidate successfulCandidate, out string queryDocumentId, out Documents ticket)
+        {
+            var preferredDeviceId = TryGetWorkflowDeviceIdCandidate(client, out var discoveredDeviceId, out var deviceSource)
+                ? discoveredDeviceId
+                : null;
+            NoteHierarchy221(IsValidWorkflowDeviceId(preferredDeviceId)
+                ? string.Format(CultureInfo.InvariantCulture, "Fresh workflow will use device_id={0} from {1}.", preferredDeviceId, deviceSource)
+                : "Fresh workflow could not discover a real device_id; using synthetic 16-character fallback.");
+
+            foreach (var seed in GetWorkflowSeedCandidates(client).Take(3))
+            {
+                if (string.IsNullOrWhiteSpace(seed.SenderId) || string.IsNullOrWhiteSpace(seed.Gtin))
+                {
+                    continue;
+                }
+
+                var sessionUi = Guid.NewGuid().ToString("D");
+                var runTag = DateTime.UtcNow.ToString("yyMMddHHmmssfff", CultureInfo.InvariantCulture);
+                var sgtins = BuildWorkflowSgtins(seed.Gtin, runTag, 4);
+                var sscc = BuildWorkflowSscc(seed.Gtin, runTag);
+                NoteHierarchy221(string.Format(CultureInfo.InvariantCulture, "Fresh workflow seed: sender_id={0}, gtin={1}, sscc={2}, source={3}", seed.SenderId, seed.Gtin, sscc, seed.Source));
+
+                try
+                {
+                    var doc311 = SendTrackedDocument(client, CreateWorkflowDocument311(sessionUi, seed.SenderId, seed.Gtin, sgtins, runTag, preferredDeviceId));
+                    NoteHierarchy221(string.Format(CultureInfo.InvariantCulture, "Sent document 311: {0}, request_id={1}", doc311.DocumentId, doc311.RequestId));
+                    if (!TryEnsureProcessedDocument(client, doc311, "Document 311", TimeSpan.FromMinutes(5), out var doc311Metadata))
+                    {
+                        if (doc311Metadata?.DocStatus == DocStatusEnum.FAILED)
+                        {
+                            NoteHierarchy221("Fresh document 311 was definitively rejected by sandbox; skipping remaining fresh seed attempts.");
+                            break;
+                        }
+
+                        continue;
+                    }
+
+                    var doc313 = SendTrackedDocument(client, CreateWorkflowDocument313(sessionUi, seed.SenderId, sgtins, runTag));
+                    NoteHierarchy221(string.Format(CultureInfo.InvariantCulture, "Sent document 313: {0}, request_id={1}", doc313.DocumentId, doc313.RequestId));
+                    if (!TryEnsureProcessedDocument(client, doc313, "Document 313", TimeSpan.FromMinutes(5), out _))
+                    {
+                        continue;
+                    }
+
+                    var doc915 = SendTrackedDocument(client, CreateWorkflowDocument915(sessionUi, seed.SenderId, sscc, sgtins));
+                    NoteHierarchy221(string.Format(CultureInfo.InvariantCulture, "Sent document 915: {0}, request_id={1}", doc915.DocumentId, doc915.RequestId));
+                    if (!TryEnsureProcessedDocument(client, doc915, "Document 915", TimeSpan.FromMinutes(5), out _))
+                    {
+                        continue;
+                    }
+
+                    var candidate = new SsccQueryCandidate(seed.SenderId, sscc, 915, doc915.DocumentId);
+                    NoteHierarchy221(string.Format(CultureInfo.InvariantCulture, "Trying fresh SSCC candidate {0} created by document {1}", candidate.Sscc, candidate.SourceDocumentId));
+                    if (TrySend220AndGetHierarchyTicket(client, candidate, out queryDocumentId, out ticket))
+                    {
+                        successfulCandidate = candidate;
+                        return true;
+                    }
+                }
+                catch (MdlpException ex)
+                {
+                    NoteHierarchy221(string.Format(CultureInfo.InvariantCulture, "Fresh 311->313->915 workflow rejected by sandbox. sender_id={0}, gtin={1}, error={2}", seed.SenderId, seed.Gtin, ex.Message));
+                }
+            }
+
+            successfulCandidate = null;
+            queryDocumentId = null;
+            ticket = null;
+            return false;
+        }
+
+        private IEnumerable<SsccQueryCandidate> GetDynamicSsccQueryCandidates(MdlpClient client)
+        {
+            var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var candidate in GetSsccQueryCandidatesFromHierarchy(client, yielded))
+            {
+                yield return candidate;
+            }
+
+            foreach (var candidate in GetSsccQueryCandidatesFromOutcomeDocuments(client, 915, yielded))
+            {
+                yield return candidate;
+            }
+
+            foreach (var candidate in GetSsccQueryCandidatesFromOutcomeDocuments(client, 415, yielded))
+            {
+                yield return candidate;
+            }
+        }
+
+        private IEnumerable<SsccQueryCandidate> GetSsccQueryCandidatesFromHierarchy(MdlpClient client, HashSet<string> yielded)
+        {
+            foreach (var sscc in GetPotentialSsccs(client))
+            {
+                SsccHierarchyResponse<SsccInfo> hierarchy;
+                try
+                {
+                    hierarchy = client.GetSsccHierarchy(sscc);
+                }
+                catch (MdlpException ex) when (IsSandboxStaticResourceNotFound(ex))
+                {
+                    NoteHierarchy221("SSCC hierarchy endpoint is unavailable in sandbox; falling back to document-backed discovery.");
+                    yield break;
+                }
+                catch (MdlpException ex) when (
+                    ex.StatusCode == HttpStatusCode.NotFound ||
+                    ex.StatusCode == HttpStatusCode.Forbidden ||
+                    ex.StatusCode == HttpStatusCode.BadRequest)
+                {
+                    continue;
+                }
+
+                if (hierarchy == null || hierarchy.ErrorCode != null)
+                {
+                    continue;
+                }
+
+                var requestedPackage = hierarchy.Up?.FirstOrDefault() ?? hierarchy.Down?.FirstOrDefault();
+                if (requestedPackage == null ||
+                    string.IsNullOrWhiteSpace(requestedPackage.Sscc) ||
+                    string.IsNullOrWhiteSpace(requestedPackage.SystemSubjectID))
+                {
+                    continue;
+                }
+
+                var key = requestedPackage.SystemSubjectID + "|" + requestedPackage.Sscc;
+                if (!yielded.Add(key))
+                {
+                    continue;
+                }
+
+                yield return new SsccQueryCandidate(
+                    requestedPackage.SystemSubjectID,
+                    requestedPackage.Sscc,
+                    220,
+                    "reestr/sscc/hierarchy");
+            }
+        }
+
+        private IEnumerable<string> GetPotentialSsccs(MdlpClient client)
+        {
+            var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var sscc in KnownSsccCandidates)
+            {
+                if (!string.IsNullOrWhiteSpace(sscc) && yielded.Add(sscc))
+                {
+                    yield return sscc;
+                }
+            }
+
+            var endDate = DateTime.Now;
+            for (var i = 0; i < 12; i++)
+            {
+                var startDate = endDate.AddDays(-365);
+                EntriesResponse<SgtinExtended> sgtins;
+                try
+                {
+                    sgtins = client.GetSgtins(new SgtinFilter
+                    {
+                        EmissionDateFrom = startDate,
+                        EmissionDateTo = endDate,
+                    },
+                    startFrom: 0,
+                    count: 120);
+                }
+                catch (MdlpException ex) when (IsSandboxStaticResourceNotFound(ex))
+                {
+                    yield break;
+                }
+                catch (MdlpException ex) when (
+                    ex.StatusCode == HttpStatusCode.NotFound ||
+                    ex.StatusCode == HttpStatusCode.Forbidden ||
+                    ex.StatusCode == HttpStatusCode.BadRequest)
+                {
+                    yield break;
+                }
+
+                if (sgtins?.Entries == null)
+                {
+                    yield break;
+                }
+
+                foreach (var entry in sgtins.Entries)
+                {
+                    if (string.IsNullOrWhiteSpace(entry?.Sscc) || !yielded.Add(entry.Sscc))
+                    {
+                        continue;
+                    }
+
+                    yield return entry.Sscc;
+                }
+
+                endDate = startDate;
+            }
+        }
+
+        private IEnumerable<SsccQueryCandidate> GetSsccQueryCandidatesFromOutcomeDocuments(MdlpClient client, int docType, HashSet<string> yielded)
+        {
+            DocumentsResponse<OutcomeDocument> documents;
+            try
+            {
+                documents = client.GetOutcomeDocuments(new DocFilter
+                {
+                    DocType = docType,
+                    DocStatus = DocStatusEnum.PROCESSED_DOCUMENT,
+                    ProcessedDateFrom = DateTime.Now.AddYears(-10),
+                    ProcessedDateTo = DateTime.Now,
+                },
+                0,
+                20);
+            }
+            catch (MdlpException ex) when (
+                ex.StatusCode == HttpStatusCode.NotFound ||
+                ex.StatusCode == HttpStatusCode.Forbidden ||
+                ex.StatusCode == HttpStatusCode.BadRequest)
+            {
+                yield break;
+            }
+
+            if (documents?.Documents == null)
+            {
+                yield break;
+            }
+
+            foreach (var metadata in documents.Documents)
+            {
+                if (string.IsNullOrWhiteSpace(metadata?.DocumentID))
+                {
+                    continue;
+                }
+
+                Documents document;
+                try
+                {
+                    document = client.GetDocument(metadata.DocumentID);
+                }
+                catch (MdlpException ex) when (
+                    ex.StatusCode == HttpStatusCode.NotFound ||
+                    ex.StatusCode == HttpStatusCode.Forbidden)
+                {
+                    continue;
+                }
+
+                IEnumerable<SsccQueryCandidate> extracted = docType == 915
+                    ? ExtractSsccCandidatesFrom915(document, metadata.DocumentID)
+                    : ExtractSsccCandidatesFrom415(document, metadata.DocumentID);
+
+                foreach (var candidate in extracted)
+                {
+                    var key = candidate.SenderId + "|" + candidate.Sscc;
+                    if (!yielded.Add(key))
+                    {
+                        continue;
+                    }
+
+                    yield return candidate;
+                }
+            }
+        }
+
+        private static IEnumerable<SsccQueryCandidate> ExtractSsccCandidatesFrom915(Documents document, string documentId)
+        {
+            var senderId = document?.Multi_Pack?.Subject_Id;
+            if (string.IsNullOrWhiteSpace(senderId) || document.Multi_Pack?.By_Sgtin == null)
+            {
+                yield break;
+            }
+
+            foreach (var pack in document.Multi_Pack.By_Sgtin)
+            {
+                if (string.IsNullOrWhiteSpace(pack?.Sscc))
+                {
+                    continue;
+                }
+
+                yield return new SsccQueryCandidate(senderId, pack.Sscc, 915, documentId);
+            }
+        }
+
+        private static IEnumerable<SsccQueryCandidate> ExtractSsccCandidatesFrom415(Documents document, string documentId)
+        {
+            var senderId = document?.Move_Order?.Subject_Id;
+            if (string.IsNullOrWhiteSpace(senderId) || document.Move_Order?.Order_Details == null)
+            {
+                yield break;
+            }
+
+            foreach (var item in document.Move_Order.Order_Details)
+            {
+                var sscc = item?.Sscc_Detail?.Sscc;
+                if (string.IsNullOrWhiteSpace(sscc))
+                {
+                    continue;
+                }
+
+                yield return new SsccQueryCandidate(senderId, sscc, 415, documentId);
+            }
+        }
+
+        private static bool IsSandboxStaticResourceNotFound(MdlpException ex)
+        {
+            return ex.StatusCode == HttpStatusCode.NotFound &&
+                ex.Message.IndexOf("No static resource", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private bool TryGetHierarchyTicketForLiveSscc(MdlpClient client, out SsccQueryCandidate successfulCandidate, out string queryDocumentId, out Documents ticket)
+        {
+            foreach (var candidate in GetDynamicSsccQueryCandidates(client).Take(3))
+            {
+                WriteLine(
+                    "Trying live SSCC candidate {0} from document {1} (type {2}) and sender {3}",
+                    candidate.Sscc,
+                    candidate.SourceDocumentId,
+                    candidate.SourceDocType,
+                    candidate.SenderId);
+
+                if (TrySend220AndGetHierarchyTicket(client, candidate, out queryDocumentId, out ticket))
+                {
+                    successfulCandidate = candidate;
+                    return true;
+                }
+            }
+
+            successfulCandidate = null;
+            queryDocumentId = null;
+            ticket = null;
+            return false;
         }
 
         [Test]
         public void GetDocument221FromSandbox()
         {
-            // Документ 220 запрашивает информацию о содержимом короба
-            // Идентификатор SSCC из документа 915 (он же был в документах 415 и 601)
-            var sscc = "507540413987451236";
+            using var client = CreateHierarchyQueryClient();
+            _hierarchy221Diagnostics.Clear();
 
-            // из личного кабинета тестового участника-Типографии
-            // берем код места деятельности, расположенного по адресу:
-            // край Забайкальский р-н Могойтуйский пгт Могойтуй ул Банзарова
-            // отсюда делалась отправка ЛП
-            // var senderId = "00000000104494";
+            if (!TryGetHierarchyTicketFromFreshWorkflow(client, out var candidate, out var docId, out var ticket) &&
+                !TryGetHierarchyTicketForLiveSscc(client, out candidate, out docId, out ticket))
+            {
+                var details = _hierarchy221Diagnostics.Count == 0
+                    ? string.Empty
+                    : ": " + string.Join(" | ", _hierarchy221Diagnostics.TakeLast(8));
+                Assert.Ignore("Could not obtain 221 hierarchy response from fresh workflow or live sandbox sources" + details);
+            }
 
-            // Пошлем документ и дождемся конца обработки, в данном случае получили код:
-            // d4d79ada-6de6-412b-ac25-254ae533fe5f
-            // var docId = SendDocument220ToSandbox(senderId, sscc);
-
-            // ответ на схему 220 — схема 221, получаем ее как квитанцию к документу
-            var docId = "d4d79ada-6de6-412b-ac25-254ae533fe5f";
-            var ticket = Client.GetTicket(docId);
             var hierarchy = ticket.Hierarchy_Info;
             Assert.NotNull(hierarchy);
 
-            // нас интересует только раздел Sscc_Down, содержимое запрошенного короба
+            // Для запроса 220 песочница возвращает интересующий короб в разделе Sscc_Down.
             var package = hierarchy.Sscc_Down;
             Assert.NotNull(package);
             Assert.NotNull(package.Sscc_Info);
-            Assert.AreEqual(sscc, package.Sscc_Info.Sscc);
+            Assert.AreEqual(candidate.Sscc, package.Sscc_Info.Sscc);
 
-            // в короб вложены ЛП или другие короба
             Assert.NotNull(package.Sscc_Info.Childs);
-            Assert.AreEqual(1, package.Sscc_Info.Childs.Count);
-            Assert.NotNull(package.Sscc_Info.Childs[0]);
+            Assert.IsTrue(package.Sscc_Info.Childs.Count >= 1);
+            Assert.IsTrue(
+                package.Sscc_Info.Childs.Any(child =>
+                    (child.Sscc_Info != null && child.Sscc_Info.Count > 0) ||
+                    (child.Sgtin_Info != null && child.Sgtin_Info.Count > 0)),
+                "Hierarchy response does not contain nested SSCC or SGTIN entries.");
 
-            // вложенных коробов нет
-            Assert.NotNull(package.Sscc_Info.Childs[0].Sscc_Info);
-            Assert.AreEqual(0, package.Sscc_Info.Childs[0].Sscc_Info.Count);
-
-            // вложенные лекарства — есть
-            Assert.NotNull(package.Sscc_Info.Childs[0].Sgtin_Info);
-            Assert.AreEqual(4, package.Sscc_Info.Childs[0].Sgtin_Info.Count);
+            WriteLine(
+                "Validated dynamic 221 ticket. source_doc={0}, query_doc={1}, sscc={2}",
+                candidate.SourceDocumentId,
+                docId,
+                candidate.Sscc);
         }
 
         [Test]

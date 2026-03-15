@@ -1,6 +1,7 @@
 namespace MdlpApiClient.Probe;
 
 using MdlpApiClient;
+using MdlpApiClient.Xsd;
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
@@ -121,7 +122,64 @@ internal static class Program
                 return 0;
             }
 
-            Console.WriteLine("ERROR: Unsupported operation. Use doc-size or token.");
+            if (operation == "ticket")
+            {
+                var documentId = GetOption(options, "document-id", string.Empty);
+                var requestId = GetOption(options, "request-id", string.Empty);
+                if (string.IsNullOrWhiteSpace(documentId) && string.IsNullOrWhiteSpace(requestId))
+                {
+                    Console.WriteLine("ERROR: Missing --document-id or --request-id for ticket operation.");
+                    return 2;
+                }
+
+                if (!string.IsNullOrWhiteSpace(documentId))
+                {
+                    var ticket = client.GetTicket(documentId);
+                    PrintTicketSummary(documentId, ticket, "document_id");
+                    return 0;
+                }
+
+                var tickets = client.GetTicketsByRequestId(requestId);
+                Console.WriteLine($"REQUEST-ID: {requestId}");
+                Console.WriteLine($"TICKETS: {tickets.Length}");
+                foreach (var ticket in tickets)
+                {
+                    PrintTicketSummary("<resolved-from-request>", ticket, "request_id");
+                }
+                return 0;
+            }
+
+            if (operation == "ticket-text")
+            {
+                var documentId = GetOption(options, "document-id", string.Empty);
+                var requestId = GetOption(options, "request-id", string.Empty);
+                if (string.IsNullOrWhiteSpace(documentId) && string.IsNullOrWhiteSpace(requestId))
+                {
+                    Console.WriteLine("ERROR: Missing --document-id or --request-id for ticket-text operation.");
+                    return 2;
+                }
+
+                if (!string.IsNullOrWhiteSpace(documentId))
+                {
+                    var ticketText = client.GetTicketText(documentId);
+                    Console.WriteLine($"TICKET-ID: {documentId}");
+                    Console.WriteLine("== Ticket XML ==");
+                    Console.WriteLine(ticketText);
+                    return 0;
+                }
+
+                var ticketTexts = client.GetTicketTextsByRequestId(requestId);
+                Console.WriteLine($"REQUEST-ID: {requestId}");
+                Console.WriteLine($"TICKETS: {ticketTexts.Length}");
+                foreach (var ticketText in ticketTexts)
+                {
+                    Console.WriteLine("== Ticket XML ==");
+                    Console.WriteLine(ticketText);
+                }
+                return 0;
+            }
+
+            Console.WriteLine("ERROR: Unsupported operation. Use doc-size, ticket, ticket-text or token.");
             return 2;
         }
         catch (Exception ex)
@@ -266,6 +324,59 @@ internal static class Program
         catch
         {
             Console.WriteLine(format);
+        }
+    }
+
+    private static void PrintTicketSummary(string documentId, Documents ticket, string source)
+    {
+        Console.WriteLine($"TICKET-ID: {documentId}");
+        Console.WriteLine($"SOURCE: {source}");
+
+        if (ticket == null)
+        {
+            Console.WriteLine("ERROR: Ticket payload is empty.");
+            return;
+        }
+
+        Console.WriteLine($"VERSION: {ticket.Version}");
+
+        var result = ticket.Result;
+        if (result == null)
+        {
+            Console.WriteLine("ERROR: Ticket does not contain <result>.");
+            return;
+        }
+
+        Console.WriteLine($"ACCEPT-TIME: {result.Accept_Time:O}");
+        Console.WriteLine($"ACTION-ID: {result.Action_Id}");
+        Console.WriteLine($"OPERATION: {result.Operation}");
+        if (!string.IsNullOrWhiteSpace(result.Operation_Id))
+        {
+            Console.WriteLine($"OPERATION-ID: {result.Operation_Id}");
+        }
+
+        Console.WriteLine($"RESULT: {result.Operation_Result}");
+        Console.WriteLine($"COMMENT: {result.Operation_Comment}");
+
+        if (result.ErrorsSpecified)
+        {
+            Console.WriteLine("== Errors ==");
+            foreach (var error in result.Errors)
+            {
+                var objectIdPart = string.IsNullOrWhiteSpace(error.Object_Id)
+                    ? string.Empty
+                    : $"; object_id={error.Object_Id}";
+                Console.WriteLine($"- code={error.Error_Code}; desc={error.Error_Desc}{objectIdPart}");
+            }
+        }
+
+        if (result.Operation_WarningsSpecified)
+        {
+            Console.WriteLine("== Warnings ==");
+            foreach (var warning in result.Operation_Warnings)
+            {
+                Console.WriteLine($"- {warning.Operation_Warning}");
+            }
         }
     }
 
@@ -452,18 +563,23 @@ internal static class Program
     {
         Console.WriteLine("MdlpApiClient.Probe");
         Console.WriteLine("Usage:");
-        Console.WriteLine("  --operation doc-size|token");
+        Console.WriteLine("  --operation doc-size|ticket|ticket-text|token");
         Console.WriteLine("  --auth resident|nonresident");
         Console.WriteLine("  --base-url <url>");
         Console.WriteLine("  --client-id <id>");
         Console.WriteLine("  --client-secret <secret>");
         Console.WriteLine("  --user-id <thumbprint|subject|user>");
         Console.WriteLine("  --password <password> (for nonresident)");
+        Console.WriteLine("  --document-id <doc-id> (for ticket and ticket-text)");
+        Console.WriteLine("  --request-id <request-id> (for ticket and ticket-text)");
         Console.WriteLine("  --sign-thumbprint <thumbprint> (for token)");
         Console.WriteLine("  --csptest-path <path-to-csptest.exe> (for token, optional)");
         Console.WriteLine("  --cryptopro-pin <container-pin> (for token, optional)");
         Console.WriteLine("Examples:");
         Console.WriteLine("  dotnet run --project MdlpApiClient.Probe -- --auth resident --operation doc-size --user-id 1DF0...");
+        Console.WriteLine("  dotnet run --project MdlpApiClient.Probe -- --auth resident --operation ticket --document-id <document-id> --user-id 1DF0...");
+        Console.WriteLine("  dotnet run --project MdlpApiClient.Probe -- --auth resident --operation ticket --request-id <request-id> --user-id 1DF0...");
+        Console.WriteLine("  dotnet run --project MdlpApiClient.Probe -- --auth resident --operation ticket-text --document-id <document-id> --user-id 1DF0...");
         Console.WriteLine("  dotnet run --project MdlpApiClient.Probe -- --auth nonresident --operation doc-size --user-id starter_resident_1 --password password");
         Console.WriteLine("  dotnet run --project MdlpApiClient.Probe -- --operation token --base-url https://sb.mdlp.crpt.ru/api/v1 --client-id <id> --client-secret <secret> --user-id <sandbox-user-id> --sign-thumbprint 1DF0... --csptest-path \"C:\\Program Files\\Crypto Pro\\CSP\\csptest.exe\"");
     }

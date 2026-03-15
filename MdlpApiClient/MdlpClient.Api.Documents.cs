@@ -1,5 +1,7 @@
 ﻿namespace MdlpApiClient
 {
+    using System;
+    using System.Linq;
     using MdlpApiClient.Xsd;
     using MdlpApiClient.Serialization;
     using System.Text;
@@ -66,6 +68,52 @@
         {
             var xml = GetTicketText(documentId);
             return XmlSerializationHelper.Deserialize(xml);
+        }
+
+        /// <summary>
+        /// Convenience helper over 5.11 + 5.12: resolves document ids by request_id and downloads their tickets.
+        /// Useful for FAILED_RESULT_READY cases where diagnostics are documented as available by request_id.
+        /// </summary>
+        /// <param name="requestId">Идентификатор запроса</param>
+        public Documents[] GetTicketsByRequestId(string requestId)
+        {
+            var documents = GetDocumentsByRequestID(requestId)?.Documents;
+            if (documents == null || documents.Length == 0)
+            {
+                return Array.Empty<Documents>();
+            }
+
+            return documents
+                .Where(document => !string.IsNullOrWhiteSpace(document?.DocumentID))
+                .Select(document => GetTicket(document.DocumentID))
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Convenience helper over 5.11 + 5.12: resolves document ids by request_id and downloads their ticket XML payloads.
+        /// </summary>
+        /// <param name="requestId">Идентификатор запроса</param>
+        public string[] GetTicketTextsByRequestId(string requestId)
+        {
+            var documents = GetDocumentsByRequestID(requestId)?.Documents;
+            if (documents == null || documents.Length == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            return documents
+                .Where(document => !string.IsNullOrWhiteSpace(document?.DocumentID))
+                .Select(document => GetTicketText(document.DocumentID))
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Convenience helper over 5.11 + 5.12: returns the first available ticket resolved by request_id.
+        /// </summary>
+        /// <param name="requestId">Идентификатор запроса</param>
+        public Documents GetFirstTicketByRequestId(string requestId)
+        {
+            return GetTicketsByRequestId(requestId).FirstOrDefault();
         }
     }
 }

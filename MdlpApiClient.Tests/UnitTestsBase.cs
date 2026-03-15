@@ -196,6 +196,8 @@
             "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_11_1_GetVirtualStorage",
             "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_12_1_GetPausedCirculationDecisions",
             "MdlpApiClient.Tests.ApiTestsChapter8.Chapter8_12_2_GetPausedCirculationSgtins",
+            // Sandbox document workflows used for dynamic live data checks
+            "MdlpApiClient.Tests.SandboxTests.GetDocument221FromSandbox",
         };
 
         private static readonly string[] LegacyIntegrationAllowPatterns = (LegacyIntegrationTestsAllowRaw ?? string.Empty)
