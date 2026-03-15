@@ -59,7 +59,6 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <RestoreSources>$(RestoreSources);$(MSBuildThisFileDirectory)..\packages-local</RestoreSources>
   </PropertyGroup>
 
   <ItemGroup>

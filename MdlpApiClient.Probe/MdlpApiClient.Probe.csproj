@@ -6,7 +6,6 @@
     <RootNamespace>MdlpApiClient.Probe</RootNamespace>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <RestoreSources>$(RestoreSources);$(MSBuildThisFileDirectory)..\packages-local</RestoreSources>
   </PropertyGroup>
 
   <ItemGroup>
