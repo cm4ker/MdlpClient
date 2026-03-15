@@ -1,7 +1,7 @@
 ﻿# run unit tests and gather coverage information
-$args = "test MdlpApiClient.Tests --logger=trx;LogFileName=TestResults.trx"
+$testCommandLine = "test MdlpApiClient.Tests --logger=trx;LogFileName=TestResults.trx"
 $filter = "+[*]* -[*Test*]* -[*]MdlpApiClient.Xsd*"
-OpenCover.Console.exe -returntargetcode -register:administrator -target:dotnet.exe "-targetargs:$args" "-filter:$filter" -output:MdlpCoverage.xml
+OpenCover.Console.exe -returntargetcode -register:administrator -target:dotnet.exe "-targetargs:$testCommandLine" "-filter:$filter" -output:MdlpCoverage.xml
 $exit = $lastexitcode
 
 # upload reports to the codecov.io server
@@ -15,10 +15,19 @@ trx2junit MdlpApiClient.Tests\TestResults\TestResults.trx
 Wait-Event -Timeout 20
 
 # run normal unit tests for the single-file version and ServiceStack5 without coverage
-dotnet.exe test MdlpApiClient.Merged.Tests --logger="trx;LogFileName=TestResultsMerged.trx"
-$exit2 = $lastexitcode
-trx2junit MdlpApiClient.Merged.Tests\TestResults\TestResultsMerged.trx
-& "$PSScriptRoot\TestReportPrefix.ps1" -inputFileName MdlpApiClient.Merged.Tests\TestResults\TestResultsMerged.xml -outputFileName MdlpApiClient.Merged.Tests\TestResults\TestResultsSingleFile.trx -prefix "Merged."
+$exit2 = 0
+$mergedTestsProjectPath = Join-Path $PSScriptRoot "..\MdlpApiClient.Merged.Tests\MdlpApiClient.Merged.Tests.csproj"
+if (Test-Path $mergedTestsProjectPath)
+{
+	dotnet.exe test $mergedTestsProjectPath --logger="trx;LogFileName=TestResultsMerged.trx"
+	$exit2 = $lastexitcode
+	trx2junit MdlpApiClient.Merged.Tests\TestResults\TestResultsMerged.trx
+	& "$PSScriptRoot\TestReportPrefix.ps1" -inputFileName MdlpApiClient.Merged.Tests\TestResults\TestResultsMerged.xml -outputFileName MdlpApiClient.Merged.Tests\TestResults\TestResultsSingleFile.trx -prefix "Merged."
+}
+else
+{
+	Write-Host "Skipping MdlpApiClient.Merged.Tests: project is not present in this workspace."
+}
 
 # return dotnet test exit code
 if (($exit + $exit2) -ne 0)

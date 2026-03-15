@@ -230,6 +230,8 @@ if ($canUseCryptoProHttpHandler -and -not $DisableCryptoProStdioProxy -and -not 
     Write-Host "CryptoPro stdio proxy disabled: x64 dotnet host for proxy is not available."
 }
 
+$workspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$stdioProxyProjectPath = Join-Path $workspaceRoot "MdlpApiClient.StdioProxy\MdlpApiClient.StdioProxy.csproj"
 $stdioProxyAotOutputDirectory = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\MdlpApiClient.StdioProxy\aot\win-x64"))
 $stdioProxyAotExePath = Join-Path $stdioProxyAotOutputDirectory "MdlpApiClient.StdioProxy.exe"
 $stdioProxyDllPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\MdlpApiClient.StdioProxy\bin\$Configuration\net8.0\MdlpApiClient.StdioProxy.dll"))
@@ -238,12 +240,16 @@ $stdioProxyRequiresDotnetHost = $true
 
 if ($canUseCryptoProStdioProxy -and -not $NoBuild)
 {
-    if ($IsWindows)
+    if (-not (Test-Path $stdioProxyProjectPath))
+    {
+        Write-Host "CryptoPro stdio proxy build skipped: source project is not present in this workspace."
+    }
+    elseif ($IsWindows)
     {
         Write-Host "Publishing AOT stdio proxy helper with dotnet command: $stdioDotnetCommand"
         $publishArgs = @(
             "publish",
-            "MdlpApiClient.StdioProxy/MdlpApiClient.StdioProxy.csproj",
+            $stdioProxyProjectPath,
             "-c", "Release",
             "-r", "win-x64",
             "-p:PublishAot=true",
@@ -275,7 +281,7 @@ if ($canUseCryptoProStdioProxy -and -not $NoBuild)
     else
     {
         Write-Host "Building managed stdio proxy helper with dotnet command: $stdioDotnetCommand"
-        & $stdioDotnetCommand build "MdlpApiClient.StdioProxy/MdlpApiClient.StdioProxy.csproj" -c $Configuration
+        & $stdioDotnetCommand build $stdioProxyProjectPath -c $Configuration
         if ($LASTEXITCODE -ne 0)
         {
             Write-Error "Failed to build MdlpApiClient.StdioProxy (exit code $LASTEXITCODE)."
@@ -301,7 +307,14 @@ if ($canUseCryptoProStdioProxy)
         Write-Host "CryptoPro stdio proxy disabled: helper executable/dll was not found."
         Write-Host "Expected AOT EXE: '$stdioProxyAotExePath'"
         Write-Host "Expected managed DLL: '$stdioProxyDllPath'"
-        Write-Host "Run without -NoBuild or publish/build MdlpApiClient.StdioProxy manually."
+        if (Test-Path $stdioProxyProjectPath)
+        {
+            Write-Host "Run without -NoBuild or publish/build MdlpApiClient.StdioProxy manually."
+        }
+        else
+        {
+            Write-Host "This workspace does not contain the MdlpApiClient.StdioProxy source project."
+        }
         $canUseCryptoProStdioProxy = $false
     }
 }

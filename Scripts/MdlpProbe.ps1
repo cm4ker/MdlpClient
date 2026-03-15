@@ -55,10 +55,10 @@ function Resolve-DotnetCommand([string]$PreferredX64Path)
         }
     }
 
-    $knownPath = "C:\misc\dotnet-sdk-8.0.401-win-x64\dotnet.exe"
-    if (Test-Path $knownPath)
+    $x64Dotnet = "C:\Program Files\dotnet\x64\dotnet.exe"
+    if (Test-Path $x64Dotnet)
     {
-        return $knownPath
+        return $x64Dotnet
     }
 
     return "dotnet"
@@ -87,11 +87,19 @@ if ([string]::IsNullOrWhiteSpace($UserId))
     }
 }
 
+$workspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$probeProjectPath = Join-Path $workspaceRoot "MdlpApiClient.Probe\MdlpApiClient.Probe.csproj"
+if (-not (Test-Path $probeProjectPath))
+{
+    Write-Error "Probe project file was not found: '$probeProjectPath'."
+    exit 1
+}
+
 $dotnetCommand = Resolve-DotnetCommand -PreferredX64Path $DotnetX64Path
 
 $probeArgs = @(
     "run",
-    "--project", "MdlpApiClient.Probe/MdlpApiClient.Probe.csproj",
+    "--project", $probeProjectPath,
     "--",
     "--auth", $Auth,
     "--operation", $Operation

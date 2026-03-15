@@ -351,6 +351,8 @@ MigrationBackup/
 /MdlpCoverage.xml
 
 # Custom stuff
+.dotnet-x64/
+.tools/
 .temp
 .mirror
 *.bak
